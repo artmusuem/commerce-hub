@@ -73,7 +73,6 @@ export function WooCommerceConnect() {
           category: p.categories?.[0]?.name || 'Uncategorized',
           image_url: p.images?.[0]?.src || null,
           status: 'active' as const,
-          woo_id: p.id,
         }))
 
       // Batch insert
@@ -84,14 +83,12 @@ export function WooCommerceConnect() {
       if (insertError) throw insertError
 
       // Save store connection
-      await supabase.from('stores').upsert({
+      await supabase.from('stores').insert({
         user_id: user.id,
         platform: 'woocommerce',
-        store_url: siteUrl,
-        store_name: new URL(siteUrl).hostname,
-        credentials: { consumer_key: consumerKey, consumer_secret: consumerSecret },
-        status: 'connected'
-      }, { onConflict: 'user_id,platform' })
+        shop_name: new URL(siteUrl).hostname,
+        is_active: true
+      })
 
       setImported(transformedProducts.length)
       setStep('done')
