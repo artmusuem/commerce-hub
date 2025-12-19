@@ -64,41 +64,80 @@ export function WooCommerceConnect() {
 
       // Create store record first
       const storeName = new URL(siteUrl).hostname
-      const { data: storeRecord, error: storeError } = await supabase
+      let storeId: string | null = null
+
+      // Check if store already exists
+      const { data: existingStore } = await supabase
         .from('stores')
-        .insert({
-          user_id: user.id,
-          platform: 'woocommerce',
-          shop_name: storeName,
-          shop_id: siteUrl,
-          is_active: true
-        })
         .select()
+        .eq('user_id', user.id)
+        .eq('platform', 'woocommerce')
         .single()
 
-      if (storeError) throw storeError
-      const storeId = storeRecord.id
+      if (existingStore) {
+        storeId = existingStore.id
+      } else {
+        const { data: storeRecord, error: storeError } = await supabase
+          .from('stores')
+          .insert({
+            user_id: user.id,
+            platform: 'woocommerce',
+            store_name: storeName,
+            store_url: siteUrl,
+            is_connected: true
+          })
+          .select()
+          .single()
 
-      // Transform WooCommerce products to our format with store_id
+        if (storeError) {
+          console.error('Store creation error:', storeError)
+          // Continue without store link
+        } else {
+          storeId = storeRecord.id
+        }
+      }
+
+      // Transform WooCommerce products to our format
       const transformedProducts = products
         .filter(p => p.name && p.status === 'publish')
-        .map(p => ({
-          user_id: user.id,
-          store_id: storeId,
-          title: p.name,
-          description: stripHtml(p.description || p.short_description || ''),
-          price: parseFloat(p.price) || parseFloat(p.regular_price) || 0,
-          category: p.categories?.[0]?.name || 'Uncategorized',
-          image_url: p.images?.[0]?.src || null,
-          status: 'active' as const,
-        }))
+        .map(p => {
+          const base: Record<string, unknown> = {
+            user_id: user.id,
+            title: p.name,
+            description: stripHtml(p.description || p.short_description || ''),
+            price: parseFloat(p.price) || parseFloat(p.regular_price) || 0,
+            category: p.categories?.[0]?.name || 'Uncategorized',
+            image_url: p.images?.[0]?.src || null,
+            status: 'active' as const,
+          }
+          // Only add store_id if we have one (migration may not have run)
+          if (storeId) {
+            base.store_id = storeId
+          }
+          return base
+        })
 
       // Batch insert
       const { error: insertError } = await supabase
         .from('products')
         .insert(transformedProducts)
 
-      if (insertError) throw insertError
+      if (insertError) {
+        // If store_id column doesn't exist, retry without it
+        if (insertError.message.includes('store_id')) {
+          const productsWithoutStore = transformedProducts.map(p => {
+            const { store_id, ...rest } = p
+            return rest
+          })
+          const { error: retryError } = await supabase
+            .from('products')
+            .insert(productsWithoutStore)
+          
+          if (retryError) throw retryError
+        } else {
+          throw insertError
+        }
+      }
 
       setImported(transformedProducts.length)
       setStep('done')
