@@ -3,6 +3,14 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import type { Product } from '../../types/database'
 
+function getThumbnail(url: string, size: number = 100): string {
+  if (!url) return ''
+  if (url.includes('ids.si.edu')) {
+    return url + (url.includes('?') ? '&' : '?') + `max=${size}`
+  }
+  return url
+}
+
 export function ProductsIndex() {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
@@ -75,7 +83,7 @@ export function ProductsIndex() {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       {product.image_url ? (
-                        <img src={product.image_url} alt="" className="w-12 h-12 rounded-lg object-cover bg-gray-100" />
+                        <img src={getThumbnail(product.image_url)} alt="" className="w-12 h-12 rounded-lg object-cover bg-gray-100" />
                       ) : (
                         <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400">📷</div>
                       )}
