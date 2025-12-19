@@ -50,35 +50,41 @@ export function ImportStore() {
       // Create or get store record first
       setStatus(prev => [...prev, `Creating store: ${store.name}...`])
       
-      const { data: storeRecord, error: storeError } = await supabase
+      // Check if store already exists
+      const { data: existingStore } = await supabase
         .from('stores')
-        .upsert({
-          user_id: user.id,
-          platform: 'gallery-store',
-          shop_name: store.name,
-          shop_id: store.url,
-          is_active: true
-        }, { onConflict: 'user_id,platform,shop_id' })
         .select()
+        .eq('user_id', user.id)
+        .eq('platform', 'gallery-store')
         .single()
 
-      if (storeError) {
-        // Try to get existing store
-        const { data: existingStore } = await supabase
-          .from('stores')
-          .select()
-          .eq('user_id', user.id)
-          .eq('platform', 'gallery-store')
-          .eq('shop_id', store.url)
-          .single()
-        
-        if (!existingStore) throw storeError
-        var storeId = existingStore.id
-      } else {
-        var storeId = storeRecord.id
-      }
+      let storeId: string | null = null
 
-      setStatus(prev => [...prev, `✅ Store created: ${store.name}`])
+      if (existingStore) {
+        storeId = existingStore.id
+        setStatus(prev => [...prev, `✅ Using existing store: ${store.name}`])
+      } else {
+        // Create new store
+        const { data: storeRecord, error: storeError } = await supabase
+          .from('stores')
+          .insert({
+            user_id: user.id,
+            platform: 'gallery-store',
+            store_name: store.name,
+            store_url: store.url,
+            is_connected: true
+          })
+          .select()
+          .single()
+
+        if (storeError) {
+          console.error('Store creation error:', storeError)
+          setStatus(prev => [...prev, `⚠️ Could not create store record, continuing without store link`])
+        } else {
+          storeId = storeRecord.id
+          setStatus(prev => [...prev, `✅ Store created: ${store.name}`])
+        }
+      }
 
       let total = 0
 
@@ -100,21 +106,27 @@ export function ImportStore() {
             continue
           }
 
-          // Transform to products with store_id
+          // Transform to products format
           const products = artworks
             .filter(art => art.title && art.image)
-            .map(art => ({
-              user_id: user.id,
-              store_id: storeId,
-              title: art.title,
-              description: art.description || `A work by ${formatArtist(art.artist)}`,
-              price: 45,
-              artist: formatArtist(art.artist),
-              category: 'Art Print',
-              image_url: art.image,
-              status: 'active' as const,
-              smithsonian_id: art.smithsonian_id || art.accession_number || null,
-            }))
+            .map(art => {
+              const base: Record<string, unknown> = {
+                user_id: user.id,
+                title: art.title,
+                artist: formatArtist(art.artist),
+                description: art.description || `A work by ${formatArtist(art.artist)}`,
+                price: 45, // Base price
+                image_url: art.image,
+                category: 'Art Print',
+                status: 'active',
+                smithsonian_id: art.smithsonian_id || null
+              }
+              // Only add store_id if we have one (migration may not have run)
+              if (storeId) {
+                base.store_id = storeId
+              }
+              return base
+            })
 
           // Batch insert
           const { error: insertError } = await supabase
@@ -122,13 +134,26 @@ export function ImportStore() {
             .insert(products)
 
           if (insertError) {
-            setStatus(prev => [...prev, `❌ ${artistId}: ${insertError.message}`])
-          } else {
-            total += products.length
-            setStatus(prev => [...prev, `✅ ${artistId}: ${products.length} products`])
+            // If store_id column doesn't exist, retry without it
+            if (insertError.message.includes('store_id')) {
+              const productsWithoutStore = products.map(p => {
+                const { store_id, ...rest } = p as Record<string, unknown>
+                return rest
+              })
+              const { error: retryError } = await supabase
+                .from('products')
+                .insert(productsWithoutStore)
+              
+              if (retryError) throw retryError
+            } else {
+              throw insertError
+            }
           }
+
+          total += products.length
+          setStatus(prev => [...prev, `✅ ${artistId}: ${products.length} products`])
         } catch (err) {
-          setStatus(prev => [...prev, `❌ ${artistId}: Failed to fetch`])
+          setStatus(prev => [...prev, `❌ ${artistId}: ${err instanceof Error ? err.message : 'Failed'}`])
         }
       }
 
