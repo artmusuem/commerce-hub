@@ -39,9 +39,14 @@ export function ProductsIndex() {
           <h1 className="text-2xl font-bold text-gray-900">Products</h1>
           <p className="text-gray-600">{products.length} products</p>
         </div>
-        <Link to="/products/new" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-          + Add Product
-        </Link>
+        <div className="flex gap-2">
+          <Link to="/products/import" className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">
+            📥 Import JSON
+          </Link>
+          <Link to="/products/new" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            + Add Product
+          </Link>
+        </div>
       </div>
 
       {loading ? (
