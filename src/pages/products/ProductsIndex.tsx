@@ -3,6 +3,12 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import type { Product } from '../../types/database'
 
+interface Store {
+  id: string
+  platform: string
+  shop_name: string | null
+}
+
 function getThumbnail(url: string, size: number = 100): string {
   if (!url) return ''
   if (url.includes('ids.si.edu')) {
@@ -12,19 +18,29 @@ function getThumbnail(url: string, size: number = 100): string {
 }
 
 export function ProductsIndex() {
-  const [products, setProducts] = useState<Product[]>([])
+  const [products, setProducts] = useState<(Product & { store_id?: string })[]>([])
+  const [stores, setStores] = useState<Store[]>([])
+  const [selectedStore, setSelectedStore] = useState<string>('all')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    loadProducts()
+    loadData()
   }, [])
 
-  async function loadProducts() {
-    const { data } = await supabase
+  async function loadData() {
+    // Load stores
+    const { data: storesData } = await supabase
+      .from('stores')
+      .select('id, platform, shop_name')
+      .order('created_at', { ascending: false })
+    setStores(storesData || [])
+
+    // Load products
+    const { data: productsData } = await supabase
       .from('products')
       .select('*')
       .order('created_at', { ascending: false })
-    setProducts(data || [])
+    setProducts(productsData || [])
     setLoading(false)
   }
 
@@ -40,12 +56,31 @@ export function ProductsIndex() {
     archived: 'bg-gray-100 text-gray-700',
   }
 
+  const platformColors: Record<string, string> = {
+    'gallery-store': 'bg-blue-100 text-blue-700',
+    'woocommerce': 'bg-purple-100 text-purple-700',
+    'etsy': 'bg-orange-100 text-orange-700',
+  }
+
+  // Filter products by selected store
+  const filteredProducts = selectedStore === 'all' 
+    ? products 
+    : selectedStore === 'unassigned'
+    ? products.filter(p => !p.store_id)
+    : products.filter(p => p.store_id === selectedStore)
+
+  // Get store info for a product
+  const getStore = (storeId: string | undefined) => {
+    if (!storeId) return null
+    return stores.find(s => s.id === storeId)
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Products</h1>
-          <p className="text-gray-600">{products.length} products</p>
+          <p className="text-gray-600">{filteredProducts.length} of {products.length} products</p>
         </div>
         <div className="flex gap-2">
           <Link to="/products/import" className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">
@@ -57,13 +92,62 @@ export function ProductsIndex() {
         </div>
       </div>
 
+      {/* Store Filter */}
+      {stores.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
+          <div className="flex items-center gap-4 flex-wrap">
+            <span className="text-sm font-medium text-gray-700">Filter by store:</span>
+            <button
+              onClick={() => setSelectedStore('all')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                selectedStore === 'all' 
+                  ? 'bg-gray-900 text-white' 
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              All ({products.length})
+            </button>
+            {stores.map(store => {
+              const count = products.filter(p => p.store_id === store.id).length
+              return (
+                <button
+                  key={store.id}
+                  onClick={() => setSelectedStore(store.id)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    selectedStore === store.id 
+                      ? 'bg-gray-900 text-white' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {store.shop_name || store.platform} ({count})
+                </button>
+              )
+            })}
+            {products.some(p => !p.store_id) && (
+              <button
+                onClick={() => setSelectedStore('unassigned')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  selectedStore === 'unassigned' 
+                    ? 'bg-gray-900 text-white' 
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                Unassigned ({products.filter(p => !p.store_id).length})
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className="bg-white rounded-xl shadow-sm p-8 text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
         </div>
-      ) : products.length === 0 ? (
+      ) : filteredProducts.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm p-8 text-center">
-          <p className="text-gray-500 mb-4">No products yet</p>
+          <p className="text-gray-500 mb-4">
+            {selectedStore === 'all' ? 'No products yet' : 'No products in this store'}
+          </p>
           <Link to="/products/new" className="text-blue-600 hover:underline">Create your first product</Link>
         </div>
       ) : (
@@ -72,39 +156,52 @@ export function ProductsIndex() {
             <thead className="bg-gray-50 border-b">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Store</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {products.map(product => (
-                <tr key={product.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      {product.image_url ? (
-                        <img src={getThumbnail(product.image_url)} alt="" className="w-12 h-12 rounded-lg object-cover bg-gray-100" />
-                      ) : (
-                        <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400">📷</div>
-                      )}
-                      <div>
-                        <p className="font-medium text-gray-900">{product.title}</p>
-                        {product.artist && <p className="text-sm text-gray-500">{product.artist}</p>}
+              {filteredProducts.map(product => {
+                const store = getStore(product.store_id)
+                return (
+                  <tr key={product.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        {product.image_url ? (
+                          <img src={getThumbnail(product.image_url)} alt="" className="w-12 h-12 rounded-lg object-cover bg-gray-100" />
+                        ) : (
+                          <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400">📷</div>
+                        )}
+                        <div>
+                          <p className="font-medium text-gray-900">{product.title}</p>
+                          {product.artist && <p className="text-sm text-gray-500">{product.artist}</p>}
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 font-medium">${product.price.toFixed(2)}</td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[product.status]}`}>
-                      {product.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <Link to={`/products/${product.id}`} className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded">Edit</Link>
-                    <button onClick={() => deleteProduct(product.id, product.title)} className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded ml-2">Delete</button>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-6 py-4">
+                      {store ? (
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${platformColors[store.platform] || 'bg-gray-100 text-gray-700'}`}>
+                          {store.shop_name || store.platform}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 text-sm">—</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 font-medium">${product.price.toFixed(2)}</td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[product.status]}`}>
+                        {product.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <Link to={`/products/${product.id}`} className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded">Edit</Link>
+                      <button onClick={() => deleteProduct(product.id, product.title)} className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded ml-2">Delete</button>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
