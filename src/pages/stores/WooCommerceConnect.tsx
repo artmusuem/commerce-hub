@@ -62,11 +62,29 @@ export function WooCommerceConnect() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
-      // Transform WooCommerce products to our format
+      // Create store record first
+      const storeName = new URL(siteUrl).hostname
+      const { data: storeRecord, error: storeError } = await supabase
+        .from('stores')
+        .insert({
+          user_id: user.id,
+          platform: 'woocommerce',
+          shop_name: storeName,
+          shop_id: siteUrl,
+          is_active: true
+        })
+        .select()
+        .single()
+
+      if (storeError) throw storeError
+      const storeId = storeRecord.id
+
+      // Transform WooCommerce products to our format with store_id
       const transformedProducts = products
         .filter(p => p.name && p.status === 'publish')
         .map(p => ({
           user_id: user.id,
+          store_id: storeId,
           title: p.name,
           description: stripHtml(p.description || p.short_description || ''),
           price: parseFloat(p.price) || parseFloat(p.regular_price) || 0,
@@ -81,14 +99,6 @@ export function WooCommerceConnect() {
         .insert(transformedProducts)
 
       if (insertError) throw insertError
-
-      // Save store connection
-      await supabase.from('stores').insert({
-        user_id: user.id,
-        platform: 'woocommerce',
-        shop_name: new URL(siteUrl).hostname,
-        is_active: true
-      })
 
       setImported(transformedProducts.length)
       setStep('done')
