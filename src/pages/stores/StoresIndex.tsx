@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { initiateEtsyOAuth } from '../../lib/etsy'
 
@@ -10,9 +10,19 @@ interface Store {
   shop_id: string | null
   is_active: boolean
   last_sync_at: string | null
+  product_count?: number
+}
+
+const platformConfig: Record<string, { color: string; bgColor: string; hoverBg: string; icon: string }> = {
+  'gallery-store': { color: 'bg-blue-600', bgColor: 'bg-blue-100', hoverBg: 'hover:bg-blue-50', icon: 'G' },
+  'woocommerce': { color: 'bg-purple-600', bgColor: 'bg-purple-100', hoverBg: 'hover:bg-purple-50', icon: 'W' },
+  'etsy': { color: 'bg-orange-500', bgColor: 'bg-orange-100', hoverBg: 'hover:bg-orange-50', icon: 'E' },
+  'shopify': { color: 'bg-green-600', bgColor: 'bg-green-100', hoverBg: 'hover:bg-green-50', icon: 'S' },
+  'amazon': { color: 'bg-yellow-500', bgColor: 'bg-yellow-100', hoverBg: 'hover:bg-yellow-50', icon: 'A' },
 }
 
 export function StoresIndex() {
+  const navigate = useNavigate()
   const [stores, setStores] = useState<Store[]>([])
   const [loading, setLoading] = useState(true)
   const [connecting, setConnecting] = useState(false)
@@ -22,11 +32,31 @@ export function StoresIndex() {
   }, [])
 
   async function loadStores() {
-    const { data } = await supabase
+    // Load stores
+    const { data: storesData } = await supabase
       .from('stores')
       .select('*')
       .order('created_at', { ascending: false })
-    setStores(data || [])
+    
+    if (!storesData) {
+      setStores([])
+      setLoading(false)
+      return
+    }
+
+    // Get product counts for each store
+    const storesWithCounts = await Promise.all(
+      storesData.map(async (store) => {
+        const { count } = await supabase
+          .from('products')
+          .select('*', { count: 'exact', head: true })
+          .eq('store_id', store.id)
+        
+        return { ...store, product_count: count || 0 }
+      })
+    )
+    
+    setStores(storesWithCounts)
     setLoading(false)
   }
 
@@ -40,19 +70,37 @@ export function StoresIndex() {
     }
   }
 
-  async function disconnectStore(id: string) {
-    if (!confirm('Disconnect this store?')) return
+  async function disconnectStore(e: React.MouseEvent, id: string) {
+    e.stopPropagation() // Prevent row click
+    if (!confirm('Disconnect this store? Products will remain but be unlinked.')) return
+    
+    // Unlink products first
+    await supabase
+      .from('products')
+      .update({ store_id: null })
+      .eq('store_id', id)
+    
+    // Delete store
     await supabase.from('stores').delete().eq('id', id)
     setStores(stores.filter(s => s.id !== id))
   }
 
   const etsyConnected = stores.some(s => s.platform === 'etsy' && s.is_active)
+  const wooConnected = stores.some(s => s.platform === 'woocommerce')
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Connected Stores</h1>
-        <p className="text-gray-600">Manage your marketplace connections</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Connected Stores</h1>
+          <p className="text-gray-600">Manage your marketplace connections</p>
+        </div>
+        <Link
+          to="/stores/link-products"
+          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm"
+        >
+          🔗 Link Orphan Products
+        </Link>
       </div>
 
       {/* Import Existing Store */}
@@ -106,7 +154,7 @@ export function StoresIndex() {
                 <p className="text-xs text-gray-500">WordPress stores</p>
               </div>
             </div>
-            {stores.some(s => s.platform === 'woocommerce') ? (
+            {wooConnected ? (
               <span className="text-sm text-green-600">✓ Connected</span>
             ) : (
               <Link
@@ -151,55 +199,80 @@ export function StoresIndex() {
         </div>
       ) : stores.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm p-8 text-center">
-          <p className="text-gray-500">No stores connected yet</p>
+          <div className="text-4xl mb-3">🏪</div>
+          <p className="text-gray-500 mb-2">No stores connected yet</p>
+          <p className="text-sm text-gray-400">Connect a store above to get started</p>
         </div>
       ) : (
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b">
+            <h2 className="text-lg font-semibold text-gray-900">Your Stores</h2>
+            <p className="text-sm text-gray-500">Click a store to view and manage its products</p>
+          </div>
           <table className="w-full">
             <thead className="bg-gray-50 border-b">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Store</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Products</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Sync</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {stores.map(store => (
-                <tr key={store.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded flex items-center justify-center text-white text-sm font-bold ${
-                        store.platform === 'etsy' ? 'bg-orange-500' : 'bg-gray-500'
+              {stores.map(store => {
+                const config = platformConfig[store.platform] || { color: 'bg-gray-500', bgColor: 'bg-gray-100', hoverBg: 'hover:bg-gray-50', icon: '?' }
+                return (
+                  <tr 
+                    key={store.id} 
+                    onClick={() => navigate(`/stores/${store.id}`)}
+                    className={`${config.hoverBg} cursor-pointer transition-colors`}
+                  >
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold ${config.color}`}>
+                          {config.icon}
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">{store.shop_name || store.platform}</p>
+                          <p className="text-xs text-gray-500 capitalize">{store.platform}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-medium text-gray-900">{store.product_count || 0}</span>
+                      <span className="text-gray-500 text-sm ml-1">products</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        store.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
                       }`}>
-                        {store.platform[0].toUpperCase()}
+                        {store.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-500">
+                      {store.last_sync_at ? new Date(store.last_sync_at).toLocaleDateString() : 'Never'}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <Link
+                          to={`/products?store=${store.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        >
+                          View Products
+                        </Link>
+                        <button
+                          onClick={(e) => disconnectStore(e, store.id)}
+                          className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          Disconnect
+                        </button>
                       </div>
-                      <div>
-                        <p className="font-medium text-gray-900">{store.shop_name || store.platform}</p>
-                        <p className="text-xs text-gray-500 capitalize">{store.platform}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      store.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
-                    }`}>
-                      {store.is_active ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
-                    {store.last_sync_at ? new Date(store.last_sync_at).toLocaleString() : 'Never'}
-                  </td>
-                  <td className="px-6 py-4">
-                    <button
-                      onClick={() => disconnectStore(store.id)}
-                      className="text-sm text-red-600 hover:underline"
-                    >
-                      Disconnect
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
