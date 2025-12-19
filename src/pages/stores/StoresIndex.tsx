@@ -97,6 +97,27 @@ export function StoresIndex() {
             )}
           </div>
 
+          {/* WooCommerce */}
+          <div className="border rounded-lg p-4">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center text-white font-bold">W</div>
+              <div>
+                <p className="font-medium">WooCommerce</p>
+                <p className="text-xs text-gray-500">WordPress stores</p>
+              </div>
+            </div>
+            {stores.some(s => s.platform === 'woocommerce') ? (
+              <span className="text-sm text-green-600">✓ Connected</span>
+            ) : (
+              <Link
+                to="/stores/woocommerce"
+                className="block w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm text-center"
+              >
+                Connect WooCommerce
+              </Link>
+            )}
+          </div>
+
           {/* Shopify - Coming Soon */}
           <div className="border rounded-lg p-4 opacity-50">
             <div className="flex items-center gap-3 mb-3">
