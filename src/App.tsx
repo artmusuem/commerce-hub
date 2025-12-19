@@ -8,6 +8,7 @@ import { Dashboard } from './pages/dashboard/Dashboard'
 import { ProductsIndex } from './pages/products/ProductsIndex'
 import { ProductNew } from './pages/products/ProductNew'
 import { ProductEdit } from './pages/products/ProductEdit'
+import { ImportJSON } from './pages/products/ImportJSON'
 import { StoresIndex } from './pages/stores/StoresIndex'
 import { EtsyCallback } from './pages/stores/EtsyCallback'
 
@@ -24,6 +25,7 @@ export default function App() {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="products" element={<ProductsIndex />} />
             <Route path="products/new" element={<ProductNew />} />
+            <Route path="products/import" element={<ImportJSON />} />
             <Route path="products/:id" element={<ProductEdit />} />
             <Route path="stores" element={<StoresIndex />} />
           </Route>
