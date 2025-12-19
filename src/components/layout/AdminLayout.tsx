@@ -7,6 +7,7 @@ export function AdminLayout() {
   const navItems = [
     { to: '/dashboard', label: 'Dashboard', icon: '📊' },
     { to: '/products', label: 'Products', icon: '📦' },
+    { to: '/stores', label: 'Stores', icon: '🏪' },
   ]
 
   return (
