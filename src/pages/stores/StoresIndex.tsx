@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { initiateEtsyOAuth } from '../../lib/etsy'
 
@@ -52,6 +53,22 @@ export function StoresIndex() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Connected Stores</h1>
         <p className="text-gray-600">Manage your marketplace connections</p>
+      </div>
+
+      {/* Import Existing Store */}
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl shadow-sm p-6 mb-6 text-white">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">Import Existing Store</h2>
+            <p className="text-blue-100 text-sm mt-1">Connect Gallery Store and import all products to your database</p>
+          </div>
+          <Link
+            to="/stores/import"
+            className="px-4 py-2 bg-white text-blue-600 rounded-lg hover:bg-blue-50 font-medium"
+          >
+            Import Store →
+          </Link>
+        </div>
       </div>
 
       {/* Connect New Store */}
