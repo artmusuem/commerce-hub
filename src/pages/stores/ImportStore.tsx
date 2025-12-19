@@ -47,6 +47,39 @@ export function ImportStore() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
+      // Create or get store record first
+      setStatus(prev => [...prev, `Creating store: ${store.name}...`])
+      
+      const { data: storeRecord, error: storeError } = await supabase
+        .from('stores')
+        .upsert({
+          user_id: user.id,
+          platform: 'gallery-store',
+          shop_name: store.name,
+          shop_id: store.url,
+          is_active: true
+        }, { onConflict: 'user_id,platform,shop_id' })
+        .select()
+        .single()
+
+      if (storeError) {
+        // Try to get existing store
+        const { data: existingStore } = await supabase
+          .from('stores')
+          .select()
+          .eq('user_id', user.id)
+          .eq('platform', 'gallery-store')
+          .eq('shop_id', store.url)
+          .single()
+        
+        if (!existingStore) throw storeError
+        var storeId = existingStore.id
+      } else {
+        var storeId = storeRecord.id
+      }
+
+      setStatus(prev => [...prev, `✅ Store created: ${store.name}`])
+
       let total = 0
 
       for (const artistId of store.artists) {
@@ -67,11 +100,12 @@ export function ImportStore() {
             continue
           }
 
-          // Transform to products
+          // Transform to products with store_id
           const products = artworks
             .filter(art => art.title && art.image)
             .map(art => ({
               user_id: user.id,
+              store_id: storeId,
               title: art.title,
               description: art.description || `A work by ${formatArtist(art.artist)}`,
               price: 45,
