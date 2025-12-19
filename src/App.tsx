@@ -11,6 +11,7 @@ import { ProductEdit } from './pages/products/ProductEdit'
 import { ImportJSON } from './pages/products/ImportJSON'
 import { StoresIndex } from './pages/stores/StoresIndex'
 import { ImportStore } from './pages/stores/ImportStore'
+import { WooCommerceConnect } from './pages/stores/WooCommerceConnect'
 import { EtsyCallback } from './pages/stores/EtsyCallback'
 
 export default function App() {
@@ -30,6 +31,7 @@ export default function App() {
             <Route path="products/:id" element={<ProductEdit />} />
             <Route path="stores" element={<StoresIndex />} />
             <Route path="stores/import" element={<ImportStore />} />
+            <Route path="stores/woocommerce" element={<WooCommerceConnect />} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
