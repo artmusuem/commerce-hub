@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { transformToWooCommerce, transformToShopify, WooCategoryMap } from '../../lib/transforms'
+import { transformToWooCommerce, transformToShopify } from '../../lib/transforms'
+import type { WooCategoryMap } from '../../lib/transforms'
 import { pushProductToWooCommerce } from '../../lib/woocommerce'
 import { pushProductToShopify } from '../../lib/shopify'
 
