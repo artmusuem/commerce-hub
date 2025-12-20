@@ -49,6 +49,7 @@ export function ProductEdit() {
   const [_storeId, setStoreId] = useState<string | null>(null)
   const [externalId, setExternalId] = useState<string | null>(null)
   const [attributes, setAttributes] = useState<ProductAttribute[]>([])
+  const [shopifyTags, setShopifyTags] = useState('')
   const [productType, setProductType] = useState<string>('simple')
   const [newOptionInputs, setNewOptionInputs] = useState<Record<number, string>>({})  // Track new option input per attribute
   const [variations, setVariations] = useState<WooCommerceVariation[]>([])
@@ -101,7 +102,16 @@ export function ProductEdit() {
       setSku(data.sku || '')
       setStoreId(data.store_id || null)
       setExternalId(data.external_id || null)
-      setAttributes(data.attributes || [])
+      
+      // Handle attributes - can be array (WooCommerce) or object (Shopify)
+      const attrs = data.attributes || []
+      if (Array.isArray(attrs)) {
+        setAttributes(attrs)
+      } else if (attrs && typeof attrs === 'object') {
+        // Shopify-style attributes object
+        setShopifyTags(attrs.shopify_tags || '')
+      }
+      
       setProductType(data.product_type || 'simple')
 
       // Load stores for push functionality
@@ -163,6 +173,16 @@ export function ProductEdit() {
     console.log('Starting save...')
 
     try {
+      // Determine attributes format based on what we have
+      // If shopifyTags is set, save as object; otherwise save array
+      let attributesToSave: unknown = attributes
+      if (shopifyTags) {
+        attributesToSave = {
+          shopify_tags: shopifyTags,
+          platform: 'shopify'
+        }
+      }
+      
       const { error: updateError } = await supabase
         .from('products')
         .update({
@@ -174,7 +194,7 @@ export function ProductEdit() {
           image_url: imageUrl || null,
           status,
           sku: sku || null,
-          attributes,
+          attributes: attributesToSave,
         })
         .eq('id', id)
 
@@ -283,7 +303,7 @@ export function ProductEdit() {
         }
 
         const shopDomain = store.store_url?.replace(/^https?:\/\//, '').replace(/\/$/, '') || ''
-        const shopifyProduct = transformToShopify(product, store.store_name || 'Commerce Hub')
+        const shopifyProduct = transformToShopify(product, store.store_name || 'Commerce Hub', shopifyTags)
         
         // Use external_id to determine update vs create
         const isUpdate = externalId && !isNaN(parseInt(externalId))
@@ -650,6 +670,25 @@ export function ProductEdit() {
             </p>
           )}
         </div>
+
+        {/* Shopify Tags - show if this is a Shopify product */}
+        {(shopifyTags || stores.some(s => s.platform === 'shopify' && s.id === selectedPushStore)) && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Shopify Tags
+            </label>
+            <input
+              type="text"
+              value={shopifyTags}
+              onChange={e => setShopifyTags(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              placeholder="tag1, tag2, tag3"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Comma-separated tags for Shopify filtering
+            </p>
+          </div>
+        )}
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Image URL</label>
