@@ -1,16 +1,22 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { transformToWooCommerce, transformToShopify } from '../../lib/transforms'
+import { transformToWooCommerce, transformToShopify, WooCategoryMap } from '../../lib/transforms'
 import { pushProductToWooCommerce } from '../../lib/woocommerce'
 import { pushProductToShopify } from '../../lib/shopify'
+
+interface WooCredentials {
+  consumer_key: string
+  consumer_secret: string
+  categories?: { id: number; name: string }[]
+}
 
 interface Store {
   id: string
   platform: string
   store_name: string | null
   store_url: string | null
-  api_credentials: Record<string, string> | null
+  api_credentials: WooCredentials | { access_token?: string } | null
 }
 
 export function ProductEdit() {
@@ -132,16 +138,21 @@ export function ProductEdit() {
 
       if (store.platform === 'woocommerce') {
         // WooCommerce push
-        const credentials = store.api_credentials as { 
-          consumer_key?: string
-          consumer_secret?: string 
-        } | null
+        const credentials = store.api_credentials as WooCredentials | null
         
         if (!credentials?.consumer_key || !credentials?.consumer_secret) {
           throw new Error('WooCommerce API credentials not found for this store')
         }
 
-        const wooProduct = transformToWooCommerce(product)
+        // Build category map: lowercase name → WooCommerce ID
+        const categoryMap: WooCategoryMap = {}
+        if (credentials.categories) {
+          for (const cat of credentials.categories) {
+            categoryMap[cat.name.toLowerCase()] = cat.id
+          }
+        }
+
+        const wooProduct = transformToWooCommerce(product, categoryMap)
         const result = await pushProductToWooCommerce(
           {
             siteUrl: store.store_url || '',
