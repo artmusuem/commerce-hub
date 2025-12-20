@@ -5,7 +5,6 @@ import { transformToWooCommerce, transformToShopify } from '../../lib/transforms
 import type { WooCategoryMap } from '../../lib/transforms'
 import { pushProductToWooCommerce, fetchProductVariations, updateProductVariation } from '../../lib/woocommerce'
 import type { WooCommerceVariation } from '../../lib/woocommerce'
-import { pushProductToShopify } from '../../lib/shopify'
 
 interface WooCredentials {
   consumer_key: string
@@ -275,8 +274,8 @@ export function ProductEdit() {
           success: true,
           message: `Product pushed to WooCommerce! ID: ${result.id}`
         })
-      } else if (store.platform === 'shopify') {
-        // Shopify push
+            } else if (store.platform === 'shopify') {
+        // Shopify push via serverless proxy (avoids CORS)
         const credentials = store.api_credentials as { access_token?: string } | null
         
         if (!credentials?.access_token) {
@@ -286,15 +285,43 @@ export function ProductEdit() {
         const shopDomain = store.store_url?.replace(/^https?:\/\//, '').replace(/\/$/, '') || ''
         const shopifyProduct = transformToShopify(product, store.store_name || 'Commerce Hub')
         
-        const result = await pushProductToShopify(
-          shopDomain,
-          credentials.access_token,
-          shopifyProduct
-        )
+        // Use external_id to determine update vs create
+        const isUpdate = externalId && !isNaN(parseInt(externalId))
+        
+        const response = await fetch('/api/shopify/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            shop: shopDomain,
+            accessToken: credentials.access_token,
+            action: isUpdate ? 'update' : 'create',
+            productId: isUpdate ? externalId : undefined,
+            product: shopifyProduct
+          })
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Shopify push failed')
+        }
+
+        const result = await response.json()
+        const productData = result.product
+        
+        // Save external_id if this was a create
+        if (!isUpdate && productData?.id) {
+          await supabase
+            .from('products')
+            .update({ external_id: String(productData.id) })
+            .eq('id', id)
+          setExternalId(String(productData.id))
+        }
 
         setPushResult({
           success: true,
-          message: `Product pushed to Shopify! ID: ${result.id}`
+          message: isUpdate 
+            ? `Product updated in Shopify! ID: ${productData?.id}`
+            : `Product created in Shopify! ID: ${productData?.id}`
         })
       } else if (store.platform === 'gallery-store') {
         // Gallery Store push - updates JSON file in GitHub repo
