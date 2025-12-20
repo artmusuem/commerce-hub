@@ -33,8 +33,7 @@ export default function ShopifyCallback() {
       if (errorParam) {
         setStatus('error')
         setMessage(`Shopify error: ${errorDesc || errorParam}`)
-        setDebugInfo(debug.join('
-'))
+        setDebugInfo(debug.join('\n'))
         clearOAuthSession()
         return
       }
@@ -46,8 +45,7 @@ export default function ShopifyCallback() {
       if (!state || !validateOAuthState(state)) {
         setStatus('error')
         setMessage('Invalid authorization state. Please try connecting again.')
-        setDebugInfo(debug.join('
-'))
+        setDebugInfo(debug.join('\n'))
         clearOAuthSession()
         return
       }
@@ -55,91 +53,77 @@ export default function ShopifyCallback() {
       if (!code || !shop) {
         setStatus('error')
         setMessage(`Missing authorization code or shop domain. Code: ${!!code}, Shop: ${shop}`)
-        setDebugInfo(debug.join('
-'))
+        setDebugInfo(debug.join('\n'))
         clearOAuthSession()
         return
       }
 
       try {
-        setMessage('Exchanging authorization code for access token...')
+        debug.push('Exchanging code for token...')
+        setDebugInfo(debug.join('\n'))
 
         // Exchange code for access token via our API
-        debug.push(`Calling /api/shopify/token with shop: ${shop}`)
         const tokenResponse = await fetch('/api/shopify/token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ shop, code })
+          body: JSON.stringify({ code, shop })
         })
 
         debug.push(`Token response status: ${tokenResponse.status}`)
-        const responseText = await tokenResponse.text()
-        debug.push(`Token response body: ${responseText}`)
+        
+        const tokenData = await tokenResponse.json()
+        debug.push(`Token response: ${JSON.stringify(tokenData)}`)
+        setDebugInfo(debug.join('\n'))
 
-        if (!tokenResponse.ok) {
-          let errorMsg = 'Failed to exchange code for token'
-          try {
-            const errorData = JSON.parse(responseText)
-            errorMsg = errorData.error || errorData.details || errorMsg
-          } catch (e) {
-            errorMsg = responseText || errorMsg
-          }
-          throw new Error(errorMsg)
+        if (!tokenResponse.ok || tokenData.error) {
+          throw new Error(tokenData.error || tokenData.details || 'Failed to get access token')
         }
 
-        const { access_token, scope } = JSON.parse(responseText)
-        debug.push(`Got access token: ${access_token ? 'yes' : 'no'}`)
-        debug.push(`Scope: ${scope}`)
-
-        setMessage('Saving store connection...')
+        const accessToken = tokenData.access_token
 
         // Get current user
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
           throw new Error('Not authenticated')
         }
-        debug.push(`User: ${user.id}`)
 
-        // Clean shop domain
-        const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '')
-        const storeName = cleanShop.split('.')[0].replace(/-/g, ' ').replace(/\w/g, (c: string) => c.toUpperCase())
+        debug.push(`User: ${user.id}`)
+        debug.push('Saving store to database...')
+        setDebugInfo(debug.join('\n'))
 
         // Check if store already exists
         const { data: existingStore } = await supabase
           .from('stores')
           .select('id')
           .eq('platform', 'shopify')
-          .eq('url', cleanShop)
+          .eq('store_url', shop)
           .eq('user_id', user.id)
           .single()
 
         if (existingStore) {
-          debug.push(`Updating existing store: ${existingStore.id}`)
-          await supabase
+          // Update existing store
+          const { error: updateError } = await supabase
             .from('stores')
             .update({
-              name: storeName,
-              api_credentials: { 
-                access_token,
-                scope,
-                connected_at: new Date().toISOString()
-              }
+              api_credentials: { access_token: accessToken },
+              name: shop.replace('.myshopify.com', '')
             })
             .eq('id', existingStore.id)
+
+          if (updateError) {
+            debug.push(`Update error: ${JSON.stringify(updateError)}`)
+            throw updateError
+          }
         } else {
-          debug.push('Creating new store')
+          // Create new store
           const { error: insertError } = await supabase
             .from('stores')
             .insert({
-              name: storeName,
+              name: shop.replace('.myshopify.com', ''),
               platform: 'shopify',
-              url: cleanShop,
-              user_id: user.id,
-              api_credentials: {
-                access_token,
-                scope,
-                connected_at: new Date().toISOString()
-              }
+              store_url: shop,
+              api_credentials: { access_token: accessToken },
+              user_id: user.id
             })
 
           if (insertError) {
@@ -151,20 +135,17 @@ export default function ShopifyCallback() {
         clearOAuthSession()
         setStatus('success')
         setMessage('Shopify store connected successfully!')
-        setDebugInfo(debug.join('
-'))
+        setDebugInfo(debug.join('\n'))
+        
+        // Redirect after short delay
+        setTimeout(() => navigate('/stores'), 2000)
 
-        setTimeout(() => {
-          navigate('/stores')
-        }, 2000)
-
-      } catch (error) {
-        console.error('Shopify callback error:', error)
-        debug.push(`Error: ${error instanceof Error ? error.message : String(error)}`)
+      } catch (err) {
+        console.error('Shopify callback error:', err)
+        debug.push(`Error: ${err instanceof Error ? err.message : String(err)}`)
         setStatus('error')
-        setMessage(error instanceof Error ? error.message : 'Failed to connect Shopify store')
-        setDebugInfo(debug.join('
-'))
+        setMessage(err instanceof Error ? err.message : 'Failed to connect Shopify store')
+        setDebugInfo(debug.join('\n'))
         clearOAuthSession()
       }
     }
@@ -173,56 +154,49 @@ export default function ShopifyCallback() {
   }, [searchParams, navigate])
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      <div className="bg-white rounded-lg shadow-md p-8 max-w-2xl w-full text-center">
-        {status === 'processing' && (
-          <>
-            <div className="w-16 h-16 border-4 border-green-200 border-t-green-600 rounded-full animate-spin mx-auto mb-4"></div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Connecting Shopify</h2>
-            <p className="text-gray-600">{message}</p>
-          </>
-        )}
-
-        {status === 'success' && (
-          <>
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Connected!</h2>
-            <p className="text-gray-600">{message}</p>
-            <p className="text-sm text-gray-500 mt-2">Redirecting to stores...</p>
-          </>
-        )}
-
-        {status === 'error' && (
-          <>
-            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Connection Failed</h2>
-            <p className="text-gray-600 mb-4">{message}</p>
-            <button
-              onClick={() => navigate('/stores/shopify')}
-              className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors"
-            >
-              Try Again
-            </button>
-          </>
-        )}
-
-        {/* Debug Info */}
-        {debugInfo && (
-          <div className="mt-6 text-left">
-            <details className="bg-gray-100 rounded-lg p-4">
-              <summary className="cursor-pointer text-sm font-medium text-gray-700">Debug Info</summary>
-              <pre className="mt-2 text-xs text-gray-600 whitespace-pre-wrap overflow-auto max-h-64">{debugInfo}</pre>
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full">
+        <div className="text-center">
+          {status === 'processing' && (
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
+          )}
+          {status === 'success' && (
+            <div className="text-green-600 text-5xl mb-4">✓</div>
+          )}
+          {status === 'error' && (
+            <div className="text-red-600 text-5xl mb-4">✗</div>
+          )}
+          
+          <h2 className={`text-xl font-semibold mb-2 ${
+            status === 'error' ? 'text-red-600' : 
+            status === 'success' ? 'text-green-600' : 
+            'text-gray-800'
+          }`}>
+            {status === 'processing' ? 'Connecting to Shopify...' :
+             status === 'success' ? 'Connected!' :
+             'Connection Failed'}
+          </h2>
+          
+          <p className="text-gray-600 mb-4">{message}</p>
+          
+          {debugInfo && (
+            <details className="mt-4 text-left">
+              <summary className="cursor-pointer text-sm text-gray-500">Debug Info</summary>
+              <pre className="mt-2 p-3 bg-gray-100 rounded text-xs overflow-auto max-h-60">
+                {debugInfo}
+              </pre>
             </details>
-          </div>
-        )}
+          )}
+          
+          {status === 'error' && (
+            <button
+              onClick={() => navigate('/stores')}
+              className="mt-4 px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+            >
+              Back to Stores
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )
