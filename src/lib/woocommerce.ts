@@ -31,6 +31,14 @@ export interface WooCommercePushPayload {
   sku?: string
   images?: { src: string; alt?: string }[]
   categories?: { id: number }[]
+  attributes?: {
+    id?: number
+    name: string
+    position?: number
+    visible?: boolean
+    variation?: boolean
+    options: string[]
+  }[]
 }
 
 /**
