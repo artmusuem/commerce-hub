@@ -4,6 +4,7 @@ const REDIRECT_URI = `${window.location.origin}/auth/shopify/callback`
 const SCOPES = 'read_products,write_products,read_inventory,write_inventory'
 
 export interface ShopifyProduct {
+  tags?: string
   id: number
   title: string
   body_html: string
