@@ -1,3 +1,51 @@
+// Valid Gallery Store collections (artist slugs)
+const VALID_COLLECTIONS = [
+  'winslow-homer',
+  'mary-cassatt',
+  'thomas-cole',
+  'frederic-remington',
+  'georgia-okeeffe',
+  'edward-hopper'
+]
+
+// Map common artist name variations to slugs
+const ARTIST_TO_SLUG = {
+  'winslow homer': 'winslow-homer',
+  'homer, winslow': 'winslow-homer',
+  'mary cassatt': 'mary-cassatt',
+  'cassatt, mary': 'mary-cassatt',
+  'thomas cole': 'thomas-cole',
+  'cole, thomas': 'thomas-cole',
+  'frederic remington': 'frederic-remington',
+  'remington, frederic': 'frederic-remington',
+  'georgia okeeffe': 'georgia-okeeffe',
+  'georgia o\'keeffe': 'georgia-okeeffe',
+  'okeeffe, georgia': 'georgia-okeeffe',
+  'o\'keeffe, georgia': 'georgia-okeeffe',
+  'edward hopper': 'edward-hopper',
+  'hopper, edward': 'edward-hopper'
+}
+
+function normalizeToSlug(artistName) {
+  if (!artistName) return null
+  
+  const normalized = artistName.toLowerCase().trim()
+  
+  // Try direct mapping first
+  if (ARTIST_TO_SLUG[normalized]) {
+    return ARTIST_TO_SLUG[normalized]
+  }
+  
+  // Try converting to slug format
+  const slug = normalized.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+  
+  if (VALID_COLLECTIONS.includes(slug)) {
+    return slug
+  }
+  
+  return null
+}
+
 export default async function handler(req, res) {
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -18,16 +66,27 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing artistId, artworks, or githubToken' })
   }
 
+  // Validate artistId is a known collection
+  const validSlug = VALID_COLLECTIONS.includes(artistId) ? artistId : normalizeToSlug(artistId)
+  
+  if (!validSlug) {
+    return res.status(400).json({ 
+      error: `Invalid collection: "${artistId}"`,
+      message: `Gallery Store only supports these collections: ${VALID_COLLECTIONS.join(', ')}`,
+      hint: 'The artist name must match one of the original Smithsonian collections.'
+    })
+  }
+
   try {
     const repo = 'artmusuem/ecommerce-react'
-    const filePath = `public/data/${artistId}.json`
+    const filePath = `public/data/${validSlug}.json`
     
     // Build JSON structure matching Gallery Store format
     const jsonData = {
       collection_info: {
         source: "Smithsonian American Art Museum",
-        search_query: artworks[0]?.artist || artistId,
-        search_term: artworks[0]?.artist || artistId,
+        search_query: artworks[0]?.artist || validSlug,
+        search_term: artworks[0]?.artist || validSlug,
         total_items: artworks.length,
         generated_date: new Date().toISOString(),
         api_source: "https://api.si.edu/openaccess/api/v1.0/",
@@ -37,7 +96,7 @@ export default async function handler(req, res) {
       },
       artworks: artworks.map(a => ({
         title: a.title,
-        artist: a.artist_original || a.artist, // Keep "Last, First" format
+        artist: a.artist_original || a.artist,
         year_created: a.year_created || "Date unknown",
         medium: a.medium || "Mixed media",
         image: a.image_url,
@@ -84,9 +143,9 @@ export default async function handler(req, res) {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          message: `Update ${artistId} products from Commerce Hub`,
+          message: `Update ${validSlug} products from Commerce Hub`,
           content,
-          sha // Include SHA if updating existing file
+          sha
         })
       }
     )
@@ -104,7 +163,7 @@ export default async function handler(req, res) {
     
     return res.status(200).json({
       success: true,
-      message: `Updated ${artistId}.json with ${artworks.length} artworks`,
+      message: `Updated ${validSlug}.json with ${artworks.length} artworks`,
       commit: result.commit?.sha
     })
   } catch (error) {
