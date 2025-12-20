@@ -151,37 +151,57 @@ export function ProductEdit() {
   }, [productType, externalId, stores])
 
   async function handleSubmit(e: React.FormEvent) {
+    console.log('handleSubmit called')
     e.preventDefault()
-    if (!id) return
+    e.stopPropagation()
+    console.log('preventDefault called')
+    
+    if (!id) {
+      console.log('No id, returning')
+      return
+    }
     
     setError('')
     setSaving(true)
+    console.log('Starting save...')
 
-    const { error: updateError } = await supabase
-      .from('products')
-      .update({
-        title,
-        description: description || null,
-        price: parseFloat(price) || 0,
-        artist: artist || null,
-        category: category || null,
-        image_url: imageUrl || null,
-        status,
-        sku: sku || null,
-        attributes,  // Save edited attributes
-      })
-      .eq('id', id)
+    try {
+      const { error: updateError } = await supabase
+        .from('products')
+        .update({
+          title,
+          description: description || null,
+          price: parseFloat(price) || 0,
+          artist: artist || null,
+          category: category || null,
+          image_url: imageUrl || null,
+          status,
+          sku: sku || null,
+          attributes,
+        })
+        .eq('id', id)
 
-    if (updateError) {
-      setError(updateError.message)
+      console.log('Supabase response:', updateError ? 'ERROR' : 'SUCCESS')
+
+      if (updateError) {
+        console.log('Update error:', updateError.message)
+        setError(updateError.message)
+        setSaving(false)
+        return
+      }
+
+      console.log('Save successful, staying on page')
       setSaving(false)
-      return
+      setSaveSuccess(true)
+      setTimeout(() => setSaveSuccess(false), 3000)
+      console.log('handleSubmit complete - should NOT navigate')
+    } catch (err) {
+      console.error('Caught error in handleSubmit:', err)
+      setError(err instanceof Error ? err.message : 'Unknown error')
+      setSaving(false)
     }
-
-    setSaving(false)
-    setSaveSuccess(true)
-    setTimeout(() => setSaveSuccess(false), 3000)  // Hide after 3 seconds
   }
+
 
   async function handlePushToStore() {
     if (!selectedPushStore || !id) return
