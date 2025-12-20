@@ -178,6 +178,7 @@ export function ProductEdit() {
         }
 
         const wooProduct = transformToWooCommerce(product, categoryMap)
+        console.log('Pushing to WooCommerce:', JSON.stringify(wooProduct, null, 2))
         const result = await pushProductToWooCommerce(
           {
             siteUrl: store.store_url || '',
