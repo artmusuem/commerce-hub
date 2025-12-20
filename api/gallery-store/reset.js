@@ -1,3 +1,51 @@
+// Valid Gallery Store collections (artist slugs)
+const VALID_COLLECTIONS = [
+  'winslow-homer',
+  'mary-cassatt',
+  'thomas-cole',
+  'frederic-remington',
+  'georgia-okeeffe',
+  'edward-hopper'
+]
+
+// Map common artist name variations to slugs
+const ARTIST_TO_SLUG = {
+  'winslow homer': 'winslow-homer',
+  'homer, winslow': 'winslow-homer',
+  'mary cassatt': 'mary-cassatt',
+  'cassatt, mary': 'mary-cassatt',
+  'thomas cole': 'thomas-cole',
+  'cole, thomas': 'thomas-cole',
+  'frederic remington': 'frederic-remington',
+  'remington, frederic': 'frederic-remington',
+  'georgia okeeffe': 'georgia-okeeffe',
+  'georgia o\'keeffe': 'georgia-okeeffe',
+  'okeeffe, georgia': 'georgia-okeeffe',
+  'o\'keeffe, georgia': 'georgia-okeeffe',
+  'edward hopper': 'edward-hopper',
+  'hopper, edward': 'edward-hopper'
+}
+
+function normalizeToSlug(artistName) {
+  if (!artistName) return null
+  
+  const normalized = artistName.toLowerCase().trim()
+  
+  // Try direct mapping first
+  if (ARTIST_TO_SLUG[normalized]) {
+    return ARTIST_TO_SLUG[normalized]
+  }
+  
+  // Try converting to slug format
+  const slug = normalized.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+  
+  if (VALID_COLLECTIONS.includes(slug)) {
+    return slug
+  }
+  
+  return null
+}
+
 export default async function handler(req, res) {
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -18,10 +66,21 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing artistId or githubToken' })
   }
 
+  // Validate artistId is a known collection
+  const validSlug = VALID_COLLECTIONS.includes(artistId) ? artistId : normalizeToSlug(artistId)
+  
+  if (!validSlug) {
+    return res.status(400).json({ 
+      error: `Invalid collection: "${artistId}"`,
+      message: `Gallery Store only supports these collections: ${VALID_COLLECTIONS.join(', ')}`,
+      hint: 'The artist name must match one of the original Smithsonian collections.'
+    })
+  }
+
   try {
     const repo = 'artmusuem/ecommerce-react'
-    const defaultPath = `public/data/${artistId}.default.json`
-    const targetPath = `public/data/${artistId}.json`
+    const defaultPath = `public/data/${validSlug}.default.json`
+    const targetPath = `public/data/${validSlug}.json`
     
     // Get default file content
     const defaultResponse = await fetch(
@@ -36,7 +95,7 @@ export default async function handler(req, res) {
 
     if (!defaultResponse.ok) {
       return res.status(404).json({ 
-        error: `Default file not found: ${artistId}.default.json` 
+        error: `Default file not found: ${validSlug}.default.json` 
       })
     }
 
@@ -70,8 +129,8 @@ export default async function handler(req, res) {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          message: `Reset ${artistId} to default (demo) data`,
-          content: defaultFile.content.replace(/\n/g, ''), // GitHub returns base64 with newlines
+          message: `Reset ${validSlug} to default (demo) data`,
+          content: defaultFile.content.replace(/\n/g, ''),
           sha: targetSha
         })
       }
@@ -90,7 +149,7 @@ export default async function handler(req, res) {
     
     return res.status(200).json({
       success: true,
-      message: `Reset ${artistId} to original Smithsonian data`,
+      message: `Reset ${validSlug} to original Smithsonian data`,
       commit: result.commit?.sha
     })
   } catch (error) {
