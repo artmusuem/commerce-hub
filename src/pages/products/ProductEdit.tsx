@@ -1,3 +1,4 @@
+// Force rebuild - Save stays on page
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
