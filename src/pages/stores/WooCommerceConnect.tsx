@@ -15,6 +15,13 @@ interface WooProduct {
   status: string
 }
 
+interface WooCategory {
+  id: number
+  name: string
+  slug: string
+  parent: number
+}
+
 export function WooCommerceConnect() {
   const navigate = useNavigate()
   const [step, setStep] = useState<'connect' | 'preview' | 'importing' | 'done'>('connect')
@@ -24,6 +31,7 @@ export function WooCommerceConnect() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [products, setProducts] = useState<WooProduct[]>([])
+  const [categories, setCategories] = useState<WooCategory[]>([])
   const [imported, setImported] = useState(0)
 
   async function testConnection() {
@@ -33,19 +41,31 @@ export function WooCommerceConnect() {
     try {
       // Build WooCommerce API URL
       const baseUrl = siteUrl.replace(/\/$/, '')
-      const apiUrl = `${baseUrl}/wp-json/wc/v3/products?per_page=100&consumer_key=${consumerKey}&consumer_secret=${consumerSecret}`
+      const productsUrl = `${baseUrl}/wp-json/wc/v3/products?per_page=100&consumer_key=${consumerKey}&consumer_secret=${consumerSecret}`
+      const categoriesUrl = `${baseUrl}/wp-json/wc/v3/products/categories?per_page=100&consumer_key=${consumerKey}&consumer_secret=${consumerSecret}`
 
-      const response = await fetch(apiUrl)
+      // Fetch products and categories in parallel
+      const [productsRes, categoriesRes] = await Promise.all([
+        fetch(productsUrl),
+        fetch(categoriesUrl)
+      ])
       
-      if (!response.ok) {
-        if (response.status === 401) {
+      if (!productsRes.ok) {
+        if (productsRes.status === 401) {
           throw new Error('Invalid API credentials. Check your Consumer Key and Secret.')
         }
-        throw new Error(`Failed to connect: ${response.status}`)
+        throw new Error(`Failed to connect: ${productsRes.status}`)
       }
 
-      const data: WooProduct[] = await response.json()
-      setProducts(data)
+      const productsData: WooProduct[] = await productsRes.json()
+      setProducts(productsData)
+
+      // Categories fetch is optional - don't fail if it errors
+      if (categoriesRes.ok) {
+        const categoriesData: WooCategory[] = await categoriesRes.json()
+        setCategories(categoriesData)
+      }
+
       setStep('preview')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Connection failed')
@@ -62,7 +82,14 @@ export function WooCommerceConnect() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
-      // Create store record first
+      // Build api_credentials with categories for sync
+      const apiCredentials = {
+        consumer_key: consumerKey,
+        consumer_secret: consumerSecret,
+        categories: categories.map(c => ({ id: c.id, name: c.name }))
+      }
+
+      // Create or update store record
       const storeName = new URL(siteUrl).hostname
       let storeId: string | null = null
 
@@ -75,6 +102,19 @@ export function WooCommerceConnect() {
         .single()
 
       if (existingStore) {
+        // Update existing store with latest credentials and categories
+        const { error: updateError } = await supabase
+          .from('stores')
+          .update({
+            store_url: siteUrl,
+            api_credentials: apiCredentials,
+            is_connected: true
+          })
+          .eq('id', existingStore.id)
+        
+        if (updateError) {
+          console.error('Store update error:', updateError)
+        }
         storeId = existingStore.id
       } else {
         const { data: storeRecord, error: storeError } = await supabase
@@ -85,10 +125,7 @@ export function WooCommerceConnect() {
             store_name: storeName,
             store_url: siteUrl,
             is_connected: true,
-            api_credentials: {
-              consumer_key: consumerKey,
-              consumer_secret: consumerSecret
-            }
+            api_credentials: apiCredentials
           })
           .select()
           .single()
