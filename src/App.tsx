@@ -15,6 +15,7 @@ import { WooCommerceConnect } from './pages/stores/WooCommerceConnect'
 import { EtsyCallback } from './pages/stores/EtsyCallback'
 import ShopifyConnect from './pages/stores/ShopifyConnect'
 import ShopifyCallback from './pages/stores/ShopifyCallback'
+import ShopifyImport from './pages/stores/ShopifyImport'
 
 export default function App() {
   return (
@@ -36,6 +37,7 @@ export default function App() {
             <Route path="stores/import" element={<ImportStore />} />
             <Route path="stores/woocommerce" element={<WooCommerceConnect />} />
             <Route path="stores/shopify" element={<ShopifyConnect />} />
+            <Route path="stores/shopify/import" element={<ShopifyImport />} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
