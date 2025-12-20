@@ -124,15 +124,15 @@ export function WooCommerceConnect() {
         .insert(transformedProducts)
 
       if (insertError) {
-        // If store_id column doesn't exist, retry without it
-        if (insertError.message.includes('store_id')) {
-          const productsWithoutStore = transformedProducts.map(p => {
-            const { store_id, ...rest } = p
+        // If optional columns don't exist, retry without them
+        if (insertError.message.includes('store_id') || insertError.message.includes('external_id')) {
+          const productsWithoutOptional = transformedProducts.map(p => {
+            const { store_id, external_id, ...rest } = p
             return rest
           })
           const { error: retryError } = await supabase
             .from('products')
-            .insert(productsWithoutStore)
+            .insert(productsWithoutOptional)
           
           if (retryError) throw retryError
         } else {
