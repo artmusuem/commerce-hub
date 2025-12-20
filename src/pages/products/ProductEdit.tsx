@@ -30,6 +30,7 @@ export function ProductEdit() {
   const [status, setStatus] = useState('draft')
   const [sku, setSku] = useState('')
   const [_storeId, setStoreId] = useState<string | null>(null)
+  const [externalId, setExternalId] = useState<string | null>(null)
 
   // Push to Store state
   const [stores, setStores] = useState<Store[]>([])
@@ -63,6 +64,7 @@ export function ProductEdit() {
       setStatus(data.status)
       setSku(data.sku || '')
       setStoreId(data.store_id || null)
+      setExternalId(data.external_id || null)
 
       // Load stores for push functionality
       const { data: storesData } = await supabase
@@ -146,7 +148,8 @@ export function ProductEdit() {
             consumerKey: credentials.consumer_key,
             consumerSecret: credentials.consumer_secret
           },
-          wooProduct
+          wooProduct,
+          externalId ? parseInt(externalId) : undefined
         )
 
         setPushResult({
