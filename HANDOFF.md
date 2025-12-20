@@ -12,7 +12,7 @@
 |----------|-----|
 | **Production** | https://commerce-hub-iota.vercel.app |
 | **Repository** | https://github.com/artmusuem/commerce-hub |
-| **Local Dev** | `C:\xampp\htdocs\commerce-hub-v2` |
+| **Local Dev** | `C:\xampp\htdocs\commerce-hub` |
 
 ---
 
@@ -119,58 +119,6 @@ Commerce Hub products are automatically transformed to platform schemas:
 - **Store URL:** https://admin.shopify.com/store/dev-store-749237498237498787
 - **API Docs:** https://shopify.dev/docs/api/admin-rest
 - **Credentials:** Access token stored in Supabase `stores.api_credentials`
-
----
-
-## Platform API Structures
-
-### WooCommerce Product Schema
-```json
-{
-  "name": "Product Title",
-  "type": "simple",
-  "regular_price": "29.99",
-  "description": "Full description",
-  "short_description": "Brief desc",
-  "sku": "PROD-001",
-  "images": [
-    { "src": "https://example.com/image.jpg" }
-  ],
-  "categories": [
-    { "id": 15 }
-  ],
-  "status": "publish"
-}
-```
-
-**Endpoint:** `POST /wp-json/wc/v3/products`  
-**Auth:** Basic Auth (Consumer Key + Secret)
-
-### Shopify Product Schema
-```json
-{
-  "product": {
-    "title": "Product Title",
-    "body_html": "<p>Description</p>",
-    "vendor": "Gallery Store",
-    "product_type": "Art Print",
-    "status": "active",
-    "variants": [
-      {
-        "price": "29.99",
-        "sku": "PROD-001",
-        "inventory_quantity": 100
-      }
-    ],
-    "images": [
-      { "src": "https://example.com/image.jpg" }
-    ]
-  }
-}
-```
-
-**Endpoint:** `POST /admin/api/2024-01/products.json`  
-**Auth:** `X-Shopify-Access-Token: {access_token}`
 
 ---
 
@@ -310,13 +258,13 @@ commerce-hub/
 2. Claude pushes to GitHub via API
 3. Vercel auto-deploys
 4. Nathan pulls locally to sync:
-   cd C:\xampp\htdocs\commerce-hub-v2
+   cd C:\xampp\htdocs\commerce-hub
    git pull origin main
 ```
 
 ### Local Development
 ```bash
-cd C:\xampp\htdocs\commerce-hub-v2
+cd C:\xampp\htdocs\commerce-hub
 npm install
 npm run dev
 # Opens http://localhost:5173
@@ -358,6 +306,29 @@ npm run dev
 - [ ] Two-way sync (detect changes on platforms)
 - [ ] Push status indicators per product
 - [ ] Etsy integration (when approved)
+
+---
+
+## Quick Start for New Chat
+
+Copy-paste this to start a new session:
+
+```
+I'm continuing work on Commerce Hub.
+
+Current status:
+- ✅ Supabase backend working
+- ✅ Gallery Store import (111 products)
+- ✅ WooCommerce import (12 products)
+- ✅ Shopify OAuth connected (dev store)
+- ✅ Product Push to WooCommerce & Shopify
+- ⏳ Etsy pending API approval
+
+Local: C:\xampp\htdocs\commerce-hub
+Repo: https://github.com/artmusuem/commerce-hub
+
+Workflow: Claude pushes to GitHub, I pull locally. Vercel auto-deploys.
+```
 
 ---
 
