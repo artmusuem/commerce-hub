@@ -44,6 +44,17 @@ export function ProductEdit() {
   const [pushing, setPushing] = useState(false)
   const [pushResult, setPushResult] = useState<{ success: boolean; message: string } | null>(null)
 
+  // Derive available categories from WooCommerce stores
+  const availableCategories = stores
+    .filter(s => s.platform === 'woocommerce')
+    .flatMap(s => {
+      const creds = s.api_credentials as WooCredentials | null
+      return creds?.categories || []
+    })
+    .filter((cat, index, self) => 
+      self.findIndex(c => c.id === cat.id) === index // dedupe by id
+    )
+
   useEffect(() => {
     async function load() {
       if (!id) return
@@ -300,12 +311,33 @@ export function ProductEdit() {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-          <input
-            type="text"
-            value={category}
-            onChange={e => setCategory(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-          />
+          {availableCategories.length > 0 ? (
+            <select
+              value={category}
+              onChange={e => setCategory(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            >
+              <option value="">Select category...</option>
+              {availableCategories.map(cat => (
+                <option key={cat.id} value={cat.name}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type="text"
+              value={category}
+              onChange={e => setCategory(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              placeholder="Enter category"
+            />
+          )}
+          {availableCategories.length > 0 && (
+            <p className="text-xs text-gray-500 mt-1">
+              Categories from WooCommerce ({availableCategories.length} available)
+            </p>
+          )}
         </div>
 
         <div>
