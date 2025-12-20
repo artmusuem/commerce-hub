@@ -33,9 +33,16 @@ export function WooCommerceConnect() {
     try {
       // Build WooCommerce API URL
       const baseUrl = siteUrl.replace(/\/$/, '')
-      const apiUrl = `${baseUrl}/wp-json/wc/v3/products?per_page=100&consumer_key=${consumerKey}&consumer_secret=${consumerSecret}`
+      const apiUrl = `/api/woocommerce/fetch`
 
-      const response = await fetch(apiUrl)
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          credentials: { siteUrl: baseUrl, consumerKey, consumerSecret },
+          endpoint: "products"
+        })
+      })
       
       if (!response.ok) {
         if (response.status === 401) {
