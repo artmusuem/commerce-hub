@@ -38,10 +38,18 @@ export interface ShopifyPushPayload {
 }
 
 /**
+ * WooCommerce category map: name (lowercase) → category ID
+ */
+export type WooCategoryMap = Record<string, number>
+
+/**
  * Transform Commerce Hub product to WooCommerce format
+ * @param product - Commerce Hub product from Supabase
+ * @param categoryMap - Optional map of category names to WooCommerce IDs
  */
 export function transformToWooCommerce(
-  product: CommerceHubProduct
+  product: CommerceHubProduct,
+  categoryMap?: WooCategoryMap
 ): WooCommercePushPayload {
   // Map Commerce Hub status to WooCommerce status
   const statusMap: Record<string, string> = {
@@ -68,6 +76,14 @@ export function transformToWooCommerce(
       src: product.image_url,
       alt: product.title
     }]
+  }
+
+  // Map category name to WooCommerce category ID
+  if (product.category && categoryMap) {
+    const categoryId = categoryMap[product.category.toLowerCase()]
+    if (categoryId) {
+      payload.categories = [{ id: categoryId }]
+    }
   }
 
   return payload
@@ -125,9 +141,10 @@ export function transformToShopify(
  * Transform Commerce Hub products in bulk
  */
 export function transformBatchToWooCommerce(
-  products: CommerceHubProduct[]
+  products: CommerceHubProduct[],
+  categoryMap?: WooCategoryMap
 ): WooCommercePushPayload[] {
-  return products.map(p => transformToWooCommerce(p))
+  return products.map(p => transformToWooCommerce(p, categoryMap))
 }
 
 export function transformBatchToShopify(
