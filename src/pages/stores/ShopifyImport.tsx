@@ -8,6 +8,7 @@ interface ShopifyProduct {
   body_html: string
   vendor: string
   product_type: string
+  tags: string
   status: string
   variants: { price: string; sku: string }[]
   images: { src: string }[]
@@ -116,6 +117,10 @@ export default function ShopifyImport() {
             status: product.status === 'active' ? 'active' : 'draft',
             category: product.product_type || '',
             artist: product.vendor || '',
+            attributes: {
+              shopify_tags: product.tags || '',
+              platform: 'shopify'
+            }
           })
 
         if (insertError) {
