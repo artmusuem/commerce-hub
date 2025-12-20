@@ -158,6 +158,7 @@ export function ProductEdit() {
         image_url: imageUrl,
         sku,
         status: status as 'draft' | 'active' | 'archived',
+        attributes,  // Include attributes for WooCommerce sync
       }
 
       if (store.platform === 'woocommerce') {
