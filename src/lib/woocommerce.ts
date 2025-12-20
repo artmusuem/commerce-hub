@@ -151,3 +151,31 @@ export async function fetchWooCommerceCategories(
 
   return response.json()
 }
+
+/**
+ * Update a product variation (price, stock, etc.)
+ */
+export async function updateProductVariation(
+  credentials: WooCommerceCredentials,
+  productId: number,
+  variationId: number,
+  data: { regular_price?: string; sale_price?: string; stock_quantity?: number; stock_status?: string }
+): Promise<WooCommerceVariation> {
+  const response = await fetch('/api/woocommerce/variation-update', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      credentials,
+      productId,
+      variationId,
+      data
+    })
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`Failed to update variation: ${error}`)
+  }
+
+  return response.json()
+}
