@@ -3,7 +3,8 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { transformToWooCommerce, transformToShopify } from '../../lib/transforms'
 import type { WooCategoryMap } from '../../lib/transforms'
-import { pushProductToWooCommerce } from '../../lib/woocommerce'
+import { pushProductToWooCommerce, fetchProductVariations } from '../../lib/woocommerce'
+import type { WooCommerceVariation } from '../../lib/woocommerce'
 import { pushProductToShopify } from '../../lib/shopify'
 
 interface WooCredentials {
@@ -51,6 +52,8 @@ export function ProductEdit() {
   const [attributes, setAttributes] = useState<ProductAttribute[]>([])
   const [productType, setProductType] = useState<string>('simple')
   const [newOptionInputs, setNewOptionInputs] = useState<Record<number, string>>({})  // Track new option input per attribute
+  const [variations, setVariations] = useState<WooCommerceVariation[]>([])
+  const [loadingVariations, setLoadingVariations] = useState(false)
 
   // Push to Store state
   const [stores, setStores] = useState<Store[]>([])
@@ -110,6 +113,37 @@ export function ProductEdit() {
     }
     load()
   }, [id])
+
+  // Fetch variations for variable products
+  useEffect(() => {
+    async function loadVariations() {
+      if (productType !== 'variable' || !externalId || !stores.length) return
+      
+      // Find the WooCommerce store
+      const wooStore = stores.find(s => s.platform === 'woocommerce')
+      if (!wooStore) return
+      
+      const credentials = wooStore.api_credentials as WooCredentials | null
+      if (!credentials?.consumer_key || !credentials?.consumer_secret) return
+      
+      setLoadingVariations(true)
+      try {
+        const vars = await fetchProductVariations(
+          {
+            siteUrl: wooStore.store_url || '',
+            consumerKey: credentials.consumer_key,
+            consumerSecret: credentials.consumer_secret
+          },
+          parseInt(externalId)
+        )
+        setVariations(vars)
+      } catch (err) {
+        console.error('Failed to load variations:', err)
+      }
+      setLoadingVariations(false)
+    }
+    loadVariations()
+  }, [productType, externalId, stores])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -500,6 +534,77 @@ export function ProductEdit() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Variations Section - for variable products */}
+        {productType === 'variable' && (
+          <div className="border-t pt-4 mt-2">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Product Variations
+              <span className="ml-2 text-xs font-normal text-gray-500">
+                (from WooCommerce - {variations.length} variations)
+              </span>
+            </label>
+            {loadingVariations ? (
+              <div className="text-sm text-gray-500">Loading variations...</div>
+            ) : variations.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="px-3 py-2 text-left font-medium text-gray-700">Variation</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-700">SKU</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-700">Price</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-700">Stock</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {variations.map((variation) => (
+                      <tr key={variation.id} className="hover:bg-gray-50">
+                        <td className="px-3 py-2">
+                          <div className="flex flex-wrap gap-1">
+                            {variation.attributes.map((attr, i) => (
+                              <span key={i} className="px-2 py-0.5 bg-gray-100 rounded text-xs">
+                                {attr.name}: {attr.option}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-gray-600">
+                          {variation.sku || '-'}
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className="font-medium">${variation.regular_price || variation.price || '0'}</span>
+                          {variation.sale_price && (
+                            <span className="ml-2 text-green-600 text-xs">
+                              Sale: ${variation.sale_price}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className={`px-2 py-0.5 rounded text-xs ${
+                            variation.stock_status === 'instock' 
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            {variation.stock_status === 'instock' ? 'In Stock' : 'Out of Stock'}
+                            {variation.stock_quantity !== null && ` (${variation.stock_quantity})`}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="text-sm text-gray-500">
+                No variations found. Variations are managed in WooCommerce.
+              </div>
+            )}
+            <p className="mt-2 text-xs text-gray-500">
+              Note: Variation prices are managed directly in WooCommerce. Each variation is a separate product with its own price.
+            </p>
           </div>
         )}
 
