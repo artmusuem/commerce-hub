@@ -100,7 +100,7 @@ export function WooCommerceConnect() {
           .insert({
             user_id: user.id,
             platform: 'woocommerce',
-            shop_name: storeName,
+            store_name: storeName,
             store_url: siteUrl,
             is_connected: true,
             api_credentials: {
