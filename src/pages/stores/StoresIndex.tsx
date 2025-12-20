@@ -146,7 +146,15 @@ export function StoresIndex() {
               </div>
             </div>
             {wooConnected ? (
-              <span className="text-sm text-green-600">✓ Connected</span>
+              <div className="space-y-2">
+                <span className="text-sm text-green-600 block">✓ Connected</span>
+                <Link
+                  to="/stores/woocommerce"
+                  className="block w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm text-center"
+                >
+                  Import Products
+                </Link>
+              </div>
             ) : (
               <Link
                 to="/stores/woocommerce"
@@ -167,7 +175,15 @@ export function StoresIndex() {
               </div>
             </div>
             {shopifyConnected ? (
-              <span className="text-sm text-green-600">✓ Connected</span>
+              <div className="space-y-2">
+                <span className="text-sm text-green-600 block">✓ Connected</span>
+                <Link
+                  to="/stores/shopify/import"
+                  className="block w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm text-center"
+                >
+                  Import Products
+                </Link>
+              </div>
             ) : (
               <Link
                 to="/stores/shopify"
