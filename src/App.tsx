@@ -13,6 +13,8 @@ import { StoresIndex } from './pages/stores/StoresIndex'
 import { ImportStore } from './pages/stores/ImportStore'
 import { WooCommerceConnect } from './pages/stores/WooCommerceConnect'
 import { EtsyCallback } from './pages/stores/EtsyCallback'
+import ShopifyConnect from './pages/stores/ShopifyConnect'
+import ShopifyCallback from './pages/stores/ShopifyCallback'
 
 export default function App() {
   return (
@@ -22,6 +24,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/stores/etsy/callback" element={<ProtectedRoute><EtsyCallback /></ProtectedRoute>} />
+          <Route path="/auth/shopify/callback" element={<ProtectedRoute><ShopifyCallback /></ProtectedRoute>} />
           <Route path="/" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
@@ -32,6 +35,7 @@ export default function App() {
             <Route path="stores" element={<StoresIndex />} />
             <Route path="stores/import" element={<ImportStore />} />
             <Route path="stores/woocommerce" element={<WooCommerceConnect />} />
+            <Route path="stores/shopify" element={<ShopifyConnect />} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
