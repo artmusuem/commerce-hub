@@ -13,7 +13,11 @@ export default function ShopifyCallback() {
     async function handleCallback() {
       const code = searchParams.get('code')
       const state = searchParams.get('state')
-      const shop = searchParams.get('shop') || getSavedShopDomain()
+      const shopParam = searchParams.get('shop')
+      const savedShop = getSavedShopDomain()
+      const shop = shopParam || savedShop
+
+      console.log('Callback params:', { code: !!code, state, shop, savedShop })
 
       // Validate state to prevent CSRF
       if (!state || !validateOAuthState(state)) {
@@ -31,11 +35,24 @@ export default function ShopifyCallback() {
       }
 
       try {
-        setMessage('Exchanging authorization code...')
+        setMessage('Exchanging authorization code for access token...')
 
-        // For development: Store the code directly and handle token exchange server-side
-        // In production, you'd call a backend endpoint to exchange the code
-        
+        // Exchange code for access token via our API
+        const tokenResponse = await fetch('/api/shopify/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ shop, code })
+        })
+
+        if (!tokenResponse.ok) {
+          const errorData = await tokenResponse.json()
+          throw new Error(errorData.error || 'Failed to exchange code for token')
+        }
+
+        const { access_token, scope } = await tokenResponse.json()
+
+        setMessage('Saving store connection...')
+
         // Get current user
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
@@ -44,8 +61,7 @@ export default function ShopifyCallback() {
 
         // Clean shop domain
         const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '')
-
-        setMessage('Saving store connection...')
+        const storeName = cleanShop.split('.')[0].replace(/-/g, ' ').replace(/\w/g, (c: string) => c.toUpperCase())
 
         // Check if store already exists
         const { data: existingStore } = await supabase
@@ -57,14 +73,15 @@ export default function ShopifyCallback() {
           .single()
 
         if (existingStore) {
-          // Update existing store with new auth code
+          // Update existing store with new token
           await supabase
             .from('stores')
             .update({
+              name: storeName,
               api_credentials: { 
-                auth_code: code,
-                connected_at: new Date().toISOString(),
-                status: 'pending_token_exchange'
+                access_token,
+                scope,
+                connected_at: new Date().toISOString()
               }
             })
             .eq('id', existingStore.id)
@@ -73,14 +90,14 @@ export default function ShopifyCallback() {
           const { error: insertError } = await supabase
             .from('stores')
             .insert({
-              name: cleanShop.split('.')[0].replace(/-/g, ' ').replace(/\w/g, c => c.toUpperCase()),
+              name: storeName,
               platform: 'shopify',
               url: cleanShop,
               user_id: user.id,
               api_credentials: {
-                auth_code: code,
-                connected_at: new Date().toISOString(),
-                status: 'pending_token_exchange'
+                access_token,
+                scope,
+                connected_at: new Date().toISOString()
               }
             })
 
