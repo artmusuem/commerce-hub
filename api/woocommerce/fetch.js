@@ -26,16 +26,11 @@ export default async function handler(req, res) {
 
   try {
     const baseUrl = siteUrl.replace(/\/$/, '')
-    const authString = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64')
     
-    const apiUrl = `${baseUrl}/wp-json/wc/v3/${endpoint}?per_page=100`
+    // Use query param auth (same as original working code)
+    const apiUrl = `${baseUrl}/wp-json/wc/v3/${endpoint}?per_page=100&consumer_key=${consumerKey}&consumer_secret=${consumerSecret}`
 
-    const response = await fetch(apiUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Basic ${authString}`
-      }
-    })
+    const response = await fetch(apiUrl)
 
     if (!response.ok) {
       const errorText = await response.text()
