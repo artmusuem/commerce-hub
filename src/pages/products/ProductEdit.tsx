@@ -50,6 +50,7 @@ export function ProductEdit() {
   const [externalId, setExternalId] = useState<string | null>(null)
   const [attributes, setAttributes] = useState<ProductAttribute[]>([])
   const [productType, setProductType] = useState<string>('simple')
+  const [newOptionInputs, setNewOptionInputs] = useState<Record<number, string>>({})  // Track new option input per attribute
 
   // Push to Store state
   const [stores, setStores] = useState<Store[]>([])
@@ -456,12 +457,15 @@ export function ProductEdit() {
                     <input
                       type="text"
                       placeholder="Add option..."
+                      value={newOptionInputs[attrIndex] || ''}
+                      onChange={(e) => {
+                        setNewOptionInputs(prev => ({ ...prev, [attrIndex]: e.target.value }))
+                      }}
                       className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault()
-                          const input = e.target as HTMLInputElement
-                          const value = input.value.trim()
+                          const value = (newOptionInputs[attrIndex] || '').trim()
                           if (value && !attr.options.includes(value)) {
                             const updated = [...attributes]
                             updated[attrIndex] = {
@@ -469,16 +473,15 @@ export function ProductEdit() {
                               options: [...attr.options, value]
                             }
                             setAttributes(updated)
-                            input.value = ''
+                            setNewOptionInputs(prev => ({ ...prev, [attrIndex]: '' }))
                           }
                         }
                       }}
                     />
                     <button
                       type="button"
-                      onClick={(e) => {
-                        const input = (e.target as HTMLElement).previousElementSibling as HTMLInputElement
-                        const value = input.value.trim()
+                      onClick={() => {
+                        const value = (newOptionInputs[attrIndex] || '').trim()
                         if (value && !attr.options.includes(value)) {
                           const updated = [...attributes]
                           updated[attrIndex] = {
@@ -486,7 +489,7 @@ export function ProductEdit() {
                             options: [...attr.options, value]
                           }
                           setAttributes(updated)
-                          input.value = ''
+                          setNewOptionInputs(prev => ({ ...prev, [attrIndex]: '' }))
                         }
                       }}
                       className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
