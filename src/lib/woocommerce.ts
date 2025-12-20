@@ -42,6 +42,49 @@ export interface WooCommercePushPayload {
 }
 
 /**
+ * WooCommerce product variation
+ */
+export interface WooCommerceVariation {
+  id: number
+  sku: string
+  price: string
+  regular_price: string
+  sale_price: string
+  stock_quantity: number | null
+  stock_status: string
+  image: { id?: number; src: string; alt?: string } | null
+  attributes: {
+    id: number
+    name: string
+    option: string
+  }[]
+}
+
+/**
+ * Fetch variations for a variable product
+ */
+export async function fetchProductVariations(
+  credentials: WooCommerceCredentials,
+  productId: number
+): Promise<WooCommerceVariation[]> {
+  const response = await fetch('/api/woocommerce/variations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      credentials,
+      productId
+    })
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`Failed to fetch variations: ${error}`)
+  }
+
+  return response.json()
+}
+
+/**
  * Push a product to WooCommerce store
  * Note: This goes through our serverless function to keep secrets secure
  */
