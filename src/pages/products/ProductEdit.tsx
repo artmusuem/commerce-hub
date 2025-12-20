@@ -61,6 +61,7 @@ export function ProductEdit() {
   const [stores, setStores] = useState<Store[]>([])
   const [selectedPushStore, setSelectedPushStore] = useState('')
   const [pushing, setPushing] = useState(false)
+  const [resetting, setResetting] = useState(false)
   const [pushResult, setPushResult] = useState<{ success: boolean; message: string } | null>(null)
 
   // Derive available categories from WooCommerce stores
@@ -307,6 +308,65 @@ export function ProductEdit() {
       })
     } finally {
       setPushing(false)
+    }
+  }
+
+  async function handleResetToDemo() {
+    if (!selectedPushStore || !id) return
+    
+    const store = stores.find(s => s.id === selectedPushStore)
+    if (!store || store.platform !== 'gallery-store') return
+
+    const credentials = store.api_credentials as { github_token?: string } | null
+    if (!credentials?.github_token) {
+      setPushResult({
+        success: false,
+        message: 'GitHub token not found for Gallery Store'
+      })
+      return
+    }
+
+    // Convert artist name to file ID
+    const artistId = artist.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+    if (!artistId) {
+      setPushResult({
+        success: false,
+        message: 'Artist name is required for reset'
+      })
+      return
+    }
+
+    setResetting(true)
+    setPushResult(null)
+
+    try {
+      const response = await fetch('/api/gallery-store/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          artistId,
+          githubToken: credentials.github_token
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to reset')
+      }
+
+      const result = await response.json()
+      
+      setPushResult({
+        success: true,
+        message: `🔄 ${result.message}. Vercel will auto-deploy in ~30 seconds.`
+      })
+    } catch (err) {
+      setPushResult({
+        success: false,
+        message: err instanceof Error ? err.message : 'Reset failed'
+      })
+    } finally {
+      setResetting(false)
     }
   }
 
@@ -783,7 +843,7 @@ export function ProductEdit() {
             <button
               type="button"
               onClick={handlePushToStore}
-              disabled={!selectedPushStore || pushing}
+              disabled={!selectedPushStore || pushing || resetting}
               className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {pushing ? (
@@ -798,6 +858,27 @@ export function ProductEdit() {
                 '🚀 Push to Store'
               )}
             </button>
+            {/* Reset to Demo button - only for Gallery Store */}
+            {selectedPushStore && stores.find(s => s.id === selectedPushStore)?.platform === 'gallery-store' && (
+              <button
+                type="button"
+                onClick={handleResetToDemo}
+                disabled={resetting || pushing}
+                className="px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {resetting ? (
+                  <span className="flex items-center gap-2">
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Resetting...
+                  </span>
+                ) : (
+                  '🔄 Reset to Demo'
+                )}
+              </button>
+            )}
           </div>
 
           <p className="text-xs text-gray-400 mt-3">
