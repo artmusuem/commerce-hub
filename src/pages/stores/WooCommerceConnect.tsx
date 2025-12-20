@@ -18,7 +18,7 @@ interface WooProduct {
 export function WooCommerceConnect() {
   const navigate = useNavigate()
   const [step, setStep] = useState<'connect' | 'preview' | 'importing' | 'done'>('connect')
-  const [siteUrl, setSiteUrl] = useState('https://rapidwoo.developer2.us')
+  const [siteUrl, setSiteUrl] = useState('https://rapidwoo.com/commerce')
   const [consumerKey, setConsumerKey] = useState('')
   const [consumerSecret, setConsumerSecret] = useState('')
   const [loading, setLoading] = useState(false)
