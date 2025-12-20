@@ -721,7 +721,7 @@ export function ProductEdit() {
         </div>
 
         {/* Attributes Section - Editable */}
-        {attributes.length > 0 && (
+        {attributes.length > 0 && productPlatform !== 'shopify' && (
           <div className="border-t pt-4 mt-2">
             <label className="block text-sm font-medium text-gray-700 mb-3">
               Product Attributes
