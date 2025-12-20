@@ -109,6 +109,7 @@ export function WooCommerceConnect() {
             category: p.categories?.[0]?.name || 'Uncategorized',
             image_url: p.images?.[0]?.src || null,
             status: 'active' as const,
+            external_id: String(p.id),  // WooCommerce product ID for sync
           }
           // Only add store_id if we have one (migration may not have run)
           if (storeId) {
