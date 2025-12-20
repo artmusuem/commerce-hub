@@ -84,7 +84,11 @@ export function WooCommerceConnect() {
             platform: 'woocommerce',
             store_name: storeName,
             store_url: siteUrl,
-            is_connected: true
+            is_connected: true,
+            api_credentials: {
+              consumer_key: consumerKey,
+              consumer_secret: consumerSecret
+            }
           })
           .select()
           .single()
