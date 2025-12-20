@@ -18,7 +18,7 @@ interface WooProduct {
 export function WooCommerceConnect() {
   const navigate = useNavigate()
   const [step, setStep] = useState<'connect' | 'preview' | 'importing' | 'done'>('connect')
-  const [siteUrl, setSiteUrl] = useState('https://rapidwoo.com/commerce')
+  const [siteUrl, setSiteUrl] = useState('https://rapidwoo.developer2.us')
   const [consumerKey, setConsumerKey] = useState('')
   const [consumerSecret, setConsumerSecret] = useState('')
   const [loading, setLoading] = useState(false)
@@ -72,19 +72,34 @@ export function WooCommerceConnect() {
         .select()
         .eq('user_id', user.id)
         .eq('platform', 'woocommerce')
+        .eq('store_url', siteUrl)
         .single()
 
       if (existingStore) {
         storeId = existingStore.id
+        // Update credentials if store exists
+        await supabase
+          .from('stores')
+          .update({
+            api_credentials: {
+              consumer_key: consumerKey,
+              consumer_secret: consumerSecret
+            }
+          })
+          .eq('id', storeId)
       } else {
         const { data: storeRecord, error: storeError } = await supabase
           .from('stores')
           .insert({
             user_id: user.id,
             platform: 'woocommerce',
-            store_name: storeName,
+            shop_name: storeName,
             store_url: siteUrl,
-            is_connected: true
+            is_connected: true,
+            api_credentials: {
+              consumer_key: consumerKey,
+              consumer_secret: consumerSecret
+            }
           })
           .select()
           .single()
@@ -110,7 +125,7 @@ export function WooCommerceConnect() {
             image_url: p.images?.[0]?.src || null,
             status: 'active' as const,
           }
-          // Only add store_id if we have one (migration may not have run)
+          // Only add store_id if we have one
           if (storeId) {
             base.store_id = storeId
           }
@@ -159,6 +174,9 @@ export function WooCommerceConnect() {
         <div className="text-5xl mb-4">🎉</div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">WooCommerce Connected!</h2>
         <p className="text-gray-600 mb-6">{imported} products imported from your store</p>
+        <p className="text-sm text-gray-500 mb-6">
+          API credentials saved. You can now push products to this store.
+        </p>
         <div className="flex gap-3 justify-center">
           <button
             onClick={() => navigate('/products')}
