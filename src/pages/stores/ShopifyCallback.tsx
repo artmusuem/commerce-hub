@@ -8,6 +8,7 @@ export default function ShopifyCallback() {
   const navigate = useNavigate()
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing')
   const [message, setMessage] = useState('Processing Shopify authorization...')
+  const [debugInfo, setDebugInfo] = useState<string>('')
 
   useEffect(() => {
     async function handleCallback() {
@@ -16,20 +17,46 @@ export default function ShopifyCallback() {
       const shopParam = searchParams.get('shop')
       const savedShop = getSavedShopDomain()
       const shop = shopParam || savedShop
+      const errorParam = searchParams.get('error')
+      const errorDesc = searchParams.get('error_description')
 
-      console.log('Callback params:', { code: !!code, state, shop, savedShop })
+      const debug: string[] = []
+      debug.push(`Code present: ${!!code}`)
+      debug.push(`State: ${state}`)
+      debug.push(`Shop from URL: ${shopParam}`)
+      debug.push(`Shop from session: ${savedShop}`)
+      debug.push(`Final shop: ${shop}`)
+      debug.push(`Error param: ${errorParam}`)
+      debug.push(`Error desc: ${errorDesc}`)
+
+      // Check for OAuth error from Shopify
+      if (errorParam) {
+        setStatus('error')
+        setMessage(`Shopify error: ${errorDesc || errorParam}`)
+        setDebugInfo(debug.join('
+'))
+        clearOAuthSession()
+        return
+      }
 
       // Validate state to prevent CSRF
+      const savedState = sessionStorage.getItem('shopify_oauth_state')
+      debug.push(`Saved state: ${savedState}`)
+      
       if (!state || !validateOAuthState(state)) {
         setStatus('error')
         setMessage('Invalid authorization state. Please try connecting again.')
+        setDebugInfo(debug.join('
+'))
         clearOAuthSession()
         return
       }
 
       if (!code || !shop) {
         setStatus('error')
-        setMessage('Missing authorization code or shop domain.')
+        setMessage(`Missing authorization code or shop domain. Code: ${!!code}, Shop: ${shop}`)
+        setDebugInfo(debug.join('
+'))
         clearOAuthSession()
         return
       }
@@ -38,18 +65,31 @@ export default function ShopifyCallback() {
         setMessage('Exchanging authorization code for access token...')
 
         // Exchange code for access token via our API
+        debug.push(`Calling /api/shopify/token with shop: ${shop}`)
         const tokenResponse = await fetch('/api/shopify/token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ shop, code })
         })
 
+        debug.push(`Token response status: ${tokenResponse.status}`)
+        const responseText = await tokenResponse.text()
+        debug.push(`Token response body: ${responseText}`)
+
         if (!tokenResponse.ok) {
-          const errorData = await tokenResponse.json()
-          throw new Error(errorData.error || 'Failed to exchange code for token')
+          let errorMsg = 'Failed to exchange code for token'
+          try {
+            const errorData = JSON.parse(responseText)
+            errorMsg = errorData.error || errorData.details || errorMsg
+          } catch (e) {
+            errorMsg = responseText || errorMsg
+          }
+          throw new Error(errorMsg)
         }
 
-        const { access_token, scope } = await tokenResponse.json()
+        const { access_token, scope } = JSON.parse(responseText)
+        debug.push(`Got access token: ${access_token ? 'yes' : 'no'}`)
+        debug.push(`Scope: ${scope}`)
 
         setMessage('Saving store connection...')
 
@@ -58,6 +98,7 @@ export default function ShopifyCallback() {
         if (!user) {
           throw new Error('Not authenticated')
         }
+        debug.push(`User: ${user.id}`)
 
         // Clean shop domain
         const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '')
@@ -73,7 +114,7 @@ export default function ShopifyCallback() {
           .single()
 
         if (existingStore) {
-          // Update existing store with new token
+          debug.push(`Updating existing store: ${existingStore.id}`)
           await supabase
             .from('stores')
             .update({
@@ -86,7 +127,7 @@ export default function ShopifyCallback() {
             })
             .eq('id', existingStore.id)
         } else {
-          // Create new store
+          debug.push('Creating new store')
           const { error: insertError } = await supabase
             .from('stores')
             .insert({
@@ -101,22 +142,29 @@ export default function ShopifyCallback() {
               }
             })
 
-          if (insertError) throw insertError
+          if (insertError) {
+            debug.push(`Insert error: ${JSON.stringify(insertError)}`)
+            throw insertError
+          }
         }
 
         clearOAuthSession()
         setStatus('success')
         setMessage('Shopify store connected successfully!')
+        setDebugInfo(debug.join('
+'))
 
-        // Redirect to stores page after brief delay
         setTimeout(() => {
           navigate('/stores')
         }, 2000)
 
       } catch (error) {
         console.error('Shopify callback error:', error)
+        debug.push(`Error: ${error instanceof Error ? error.message : String(error)}`)
         setStatus('error')
         setMessage(error instanceof Error ? error.message : 'Failed to connect Shopify store')
+        setDebugInfo(debug.join('
+'))
         clearOAuthSession()
       }
     }
@@ -125,8 +173,8 @@ export default function ShopifyCallback() {
   }, [searchParams, navigate])
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="bg-white rounded-lg shadow-md p-8 max-w-md w-full text-center">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="bg-white rounded-lg shadow-md p-8 max-w-2xl w-full text-center">
         {status === 'processing' && (
           <>
             <div className="w-16 h-16 border-4 border-green-200 border-t-green-600 rounded-full animate-spin mx-auto mb-4"></div>
@@ -164,6 +212,16 @@ export default function ShopifyCallback() {
               Try Again
             </button>
           </>
+        )}
+
+        {/* Debug Info */}
+        {debugInfo && (
+          <div className="mt-6 text-left">
+            <details className="bg-gray-100 rounded-lg p-4">
+              <summary className="cursor-pointer text-sm font-medium text-gray-700">Debug Info</summary>
+              <pre className="mt-2 text-xs text-gray-600 whitespace-pre-wrap overflow-auto max-h-64">{debugInfo}</pre>
+            </details>
+          </div>
         )}
       </div>
     </div>
