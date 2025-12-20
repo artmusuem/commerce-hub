@@ -314,7 +314,7 @@ export function ProductEdit() {
         
         setPushResult({
           success: true,
-          message: `Pushed to Gallery Store! ${result.message}`
+          message: `✅ Published! ${result.message} — Live in ~30 seconds (hard refresh if cached)`
         })
       }
     } catch (err) {
