@@ -68,7 +68,7 @@ export function transformToWooCommerce(
 
   const payload: WooCommercePushPayload = {
     name: product.title,
-    type: 'simple',
+    // Don't send type - let WooCommerce keep original on update, default to simple on create
     status: statusMap[product.status] || 'draft',
     regular_price: product.price.toFixed(2),
     description: product.description || '',
