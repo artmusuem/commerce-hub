@@ -96,13 +96,15 @@ export default function ShopifyImport() {
       if (!user) throw new Error('Not authenticated')
 
       let count = 0
+      const errors: string[] = []
+      
       for (const product of products) {
         const mainVariant = product.variants[0]
         const mainImage = product.images[0]
 
         const { error: insertError } = await supabase
           .from('products')
-          .upsert({
+          .insert({
             user_id: user.id,
             store_id: selectedStore.id,
             external_id: String(product.id),
@@ -114,16 +116,21 @@ export default function ShopifyImport() {
             status: product.status === 'active' ? 'active' : 'draft',
             category: product.product_type || '',
             artist: product.vendor || '',
-          }, {
-            onConflict: 'store_id,external_id'
           })
 
-        if (!insertError) {
+        if (insertError) {
+          console.error('Insert error for', product.title, insertError)
+          errors.push(`${product.title}: ${insertError.message}`)
+        } else {
           count++
           setImported(count)
         }
       }
 
+      if (errors.length > 0) {
+        console.error('Import errors:', errors)
+      }
+      
       setStep('done')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Import failed')
