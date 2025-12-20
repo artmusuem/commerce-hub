@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { fetchWooCommerceProducts, fetchWooCommerceCategories } from '../../lib/woocommerce'
 
 interface WooProduct {
   id: number
@@ -12,9 +11,8 @@ interface WooProduct {
   price: string
   regular_price: string
   images: { src: string }[]
-  categories: { id: number; name: string }[]
+  categories: { name: string }[]
   status: string
-  sku: string
 }
 
 export function WooCommerceConnect() {
@@ -33,13 +31,21 @@ export function WooCommerceConnect() {
     setError('')
 
     try {
-      const data = await fetchWooCommerceProducts({
-        siteUrl,
-        consumerKey,
-        consumerSecret
-      })
+      // Build WooCommerce API URL
+      const baseUrl = siteUrl.replace(/\/$/, '')
+      const apiUrl = `${baseUrl}/wp-json/wc/v3/products?per_page=100&consumer_key=${consumerKey}&consumer_secret=${consumerSecret}`
+
+      const response = await fetch(apiUrl)
       
-      setProducts(data as WooProduct[])
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Invalid API credentials. Check your Consumer Key and Secret.')
+        }
+        throw new Error(`Failed to connect: ${response.status}`)
+      }
+
+      const data: WooProduct[] = await response.json()
+      setProducts(data)
       setStep('preview')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Connection failed')
@@ -66,21 +72,10 @@ export function WooCommerceConnect() {
         .select()
         .eq('user_id', user.id)
         .eq('platform', 'woocommerce')
-        .eq('store_url', siteUrl)
         .single()
 
       if (existingStore) {
         storeId = existingStore.id
-        // Update credentials if store exists
-        await supabase
-          .from('stores')
-          .update({
-            api_credentials: {
-              consumer_key: consumerKey,
-              consumer_secret: consumerSecret
-            }
-          })
-          .eq('id', storeId)
       } else {
         const { data: storeRecord, error: storeError } = await supabase
           .from('stores')
@@ -89,24 +84,20 @@ export function WooCommerceConnect() {
             platform: 'woocommerce',
             store_name: storeName,
             store_url: siteUrl,
-            is_connected: true,
-            api_credentials: {
-              consumer_key: consumerKey,
-              consumer_secret: consumerSecret
-            }
+            is_connected: true
           })
           .select()
           .single()
 
         if (storeError) {
           console.error('Store creation error:', storeError)
+          // Continue without store link
         } else {
           storeId = storeRecord.id
         }
       }
 
       // Transform WooCommerce products to our format
-      // KEY: Store external_id so we can UPDATE instead of CREATE duplicates
       const transformedProducts = products
         .filter(p => p.name && p.status === 'publish')
         .map(p => {
@@ -118,9 +109,8 @@ export function WooCommerceConnect() {
             category: p.categories?.[0]?.name || 'Uncategorized',
             image_url: p.images?.[0]?.src || null,
             status: 'active' as const,
-            sku: p.sku || null,
-            external_id: String(p.id), // WooCommerce product ID for sync
           }
+          // Only add store_id if we have one (migration may not have run)
           if (storeId) {
             base.store_id = storeId
           }
@@ -133,20 +123,10 @@ export function WooCommerceConnect() {
         .insert(transformedProducts)
 
       if (insertError) {
-        // If external_id column doesn't exist, retry without it
-        if (insertError.message.includes('external_id')) {
-          const productsWithoutExternal = transformedProducts.map(p => {
-            const { external_id: _ext, ...rest } = p
-            return rest
-          })
-          const { error: retryError } = await supabase
-            .from('products')
-            .insert(productsWithoutExternal)
-          
-          if (retryError) throw retryError
-        } else if (insertError.message.includes('store_id')) {
+        // If store_id column doesn't exist, retry without it
+        if (insertError.message.includes('store_id')) {
           const productsWithoutStore = transformedProducts.map(p => {
-            const { store_id: _store, external_id: _ext, ...rest } = p
+            const { store_id, ...rest } = p
             return rest
           })
           const { error: retryError } = await supabase
@@ -179,9 +159,6 @@ export function WooCommerceConnect() {
         <div className="text-5xl mb-4">🎉</div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">WooCommerce Connected!</h2>
         <p className="text-gray-600 mb-6">{imported} products imported from your store</p>
-        <p className="text-sm text-gray-500 mb-6">
-          Products are linked to WooCommerce. Edits will sync back when you push.
-        </p>
         <div className="flex gap-3 justify-center">
           <button
             onClick={() => navigate('/products')}
@@ -267,6 +244,7 @@ export function WooCommerceConnect() {
             </button>
           </div>
 
+          {/* Instructions */}
           <div className="mt-6 pt-6 border-t">
             <h3 className="font-medium text-gray-900 mb-2">How to get API keys:</h3>
             <ol className="text-sm text-gray-600 space-y-1 list-decimal list-inside">
