@@ -39,9 +39,12 @@ export interface ShopifyPushPayload {
 
 /**
  * Transform Commerce Hub product to WooCommerce format
+ * @param product - Commerce Hub product
+ * @param categoryId - Optional WooCommerce category ID (pre-looked up)
  */
 export function transformToWooCommerce(
-  product: CommerceHubProduct
+  product: CommerceHubProduct,
+  categoryId?: number
 ): WooCommercePushPayload {
   // Map Commerce Hub status to WooCommerce status
   const statusMap: Record<string, string> = {
@@ -60,6 +63,11 @@ export function transformToWooCommerce(
       ? `By ${product.artist}` 
       : undefined,
     sku: product.sku || `CH-${product.id.slice(0, 8)}`,
+  }
+
+  // Add category if we have a valid ID
+  if (categoryId) {
+    payload.categories = [{ id: categoryId }]
   }
 
   // Add image if present
