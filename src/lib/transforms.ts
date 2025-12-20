@@ -17,6 +17,14 @@ export interface CommerceHubProduct {
   sku: string | null
   status: 'draft' | 'active' | 'archived'
   store_id?: string
+  attributes?: {
+    id?: number
+    name: string
+    position?: number
+    visible?: boolean
+    variation?: boolean
+    options: string[]
+  }[]
 }
 
 /**
@@ -84,6 +92,18 @@ export function transformToWooCommerce(
     if (categoryId) {
       payload.categories = [{ id: categoryId }]
     }
+  }
+
+  // Pass through attributes if present
+  if (product.attributes && product.attributes.length > 0) {
+    payload.attributes = product.attributes.map(attr => ({
+      id: attr.id,
+      name: attr.name,
+      position: attr.position ?? 0,
+      visible: attr.visible ?? true,
+      variation: attr.variation ?? false,
+      options: attr.options
+    }))
   }
 
   return payload
