@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import type { Product } from '../../types/database'
 
@@ -18,9 +18,13 @@ function getThumbnail(url: string, size: number = 100): string {
 }
 
 export function ProductsIndex() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  
+  // Derive selectedStore directly from URL - single source of truth
+  const selectedStore = searchParams.get('store') || 'all'
+  
   const [products, setProducts] = useState<(Product & { store_id?: string })[]>([])
   const [stores, setStores] = useState<Store[]>([])
-  const [selectedStore, setSelectedStore] = useState<string>('all')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
@@ -28,6 +32,16 @@ export function ProductsIndex() {
   useEffect(() => {
     loadData()
   }, [])
+
+  // Update URL when filter changes (for filter buttons)
+  function setSelectedStoreFilter(storeId: string) {
+    setSelectedIds(new Set())
+    if (storeId === 'all') {
+      setSearchParams({})
+    } else {
+      setSearchParams({ store: storeId })
+    }
+  }
 
   async function loadData() {
     const { data: storesData } = await supabase
@@ -140,13 +154,22 @@ export function ProductsIndex() {
     return stores.find(s => s.id === storeId)
   }
 
+  // Get current store name for header
+  const currentStoreName = selectedStore === 'all' 
+    ? null 
+    : selectedStore === 'unassigned'
+    ? 'Unassigned'
+    : stores.find(s => s.id === selectedStore)?.shop_name || stores.find(s => s.id === selectedStore)?.platform
+
   const allSelected = filteredProducts.length > 0 && selectedIds.size === filteredProducts.length
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Products</h1>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {currentStoreName ? `${currentStoreName} Products` : 'Products'}
+          </h1>
           <p className="text-gray-600">{filteredProducts.length} of {products.length} products</p>
         </div>
         <div className="flex gap-2">
@@ -190,7 +213,7 @@ export function ProductsIndex() {
             <div className="flex items-center gap-4 flex-wrap">
               <span className="text-sm font-medium text-gray-700">Filter by store:</span>
               <button
-                onClick={() => { setSelectedStore('all'); setSelectedIds(new Set()) }}
+                onClick={() => setSelectedStoreFilter('all')}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                   selectedStore === 'all' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
@@ -202,7 +225,7 @@ export function ProductsIndex() {
                 return (
                   <button
                     key={store.id}
-                    onClick={() => { setSelectedStore(store.id); setSelectedIds(new Set()) }}
+                    onClick={() => setSelectedStoreFilter(store.id)}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                       selectedStore === store.id ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
@@ -213,7 +236,7 @@ export function ProductsIndex() {
               })}
               {products.some(p => !p.store_id) && (
                 <button
-                  onClick={() => { setSelectedStore('unassigned'); setSelectedIds(new Set()) }}
+                  onClick={() => setSelectedStoreFilter('unassigned')}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                     selectedStore === 'unassigned' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
