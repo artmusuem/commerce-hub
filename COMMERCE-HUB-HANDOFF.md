@@ -377,3 +377,90 @@ After successful deployment (commit b422369):
 
 *Last Updated: December 20, 2024*
 *Status: WooCommerce basic sync working, categories TODO*
+
+---
+
+## Gallery Store Integration (NEW)
+
+### How It Works
+
+Gallery Store is a **static JSON-based storefront**. Commerce Hub publishes to it by pushing JSON files to GitHub, which triggers Vercel auto-deploy.
+
+```
+Commerce Hub                    Gallery Store
+─────────────                   ─────────────
+Supabase DB                     Static JSON files
+     │                               │
+Edit product                    /data/winslow-homer.json
+     │                          /data/mary-cassatt.json
+Click "Publish"                 /data/thomas-cole.json
+     │                          /data/frederic-remington.json
+Push to GitHub ──────────────►  /data/georgia-okeeffe.json
+     │                          /data/edward-hopper.json
+Vercel deploys                       │
+     │                               ▼
+~30 seconds ─────────────────►  Live on storefront
+```
+
+### Endpoints
+
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /api/gallery-store/push` | Publishes collection JSON to GitHub |
+| `POST /api/gallery-store/reset` | Resets collection to original Smithsonian data |
+
+### Backup Files
+
+Each collection has a `.default.json` backup that preserves original Smithsonian data:
+- `winslow-homer.json` ← Editable
+- `winslow-homer.default.json` ← Original (never touched)
+
+"Reset to Demo" copies `.default.json` → `.json`
+
+### Collection Mapping
+
+Products link to collections via `external_id`:
+
+| Artist | external_id | JSON File |
+|--------|-------------|-----------|
+| Winslow Homer | `winslow-homer` | winslow-homer.json |
+| Mary Cassatt | `mary-cassatt` | mary-cassatt.json |
+| Thomas Cole | `thomas-cole` | thomas-cole.json |
+| Frederic Remington | `frederic-remington` | frederic-remington.json |
+| Georgia O'Keeffe | `georgia-okeeffe` | georgia-okeeffe.json |
+| Edward Hopper | `edward-hopper` | edward-hopper.json |
+
+### What Syncs
+
+| Field | Syncs to Gallery Store? |
+|-------|------------------------|
+| Title | ✅ Yes |
+| Description | ✅ Yes |
+| Artist | ✅ Yes |
+| Image URL | ✅ Yes |
+| Price | ❌ No (Gallery Store calculates from size/frame) |
+| SKU | ❌ No |
+
+### Store Credentials
+
+Gallery Store requires a GitHub token in `api_credentials`:
+```json
+{
+  "github_token": "github_pat_xxx"
+}
+```
+
+---
+
+## Session History (Latest)
+
+| Date | Focus | Commits |
+|------|-------|---------|
+| Dec 20, 2024 | WooCommerce variations + inline price editing | 4f1cdc4, 60d4f1b |
+| Dec 20, 2024 | Gallery Store publish/reset integration | ea48fb6, 1135990 |
+| Dec 20, 2024 | Collection mapping via external_id | 98deaf8 |
+
+---
+
+*Last Updated: December 20, 2024*
+*Status: Multi-channel publish working (WooCommerce + Gallery Store)*
