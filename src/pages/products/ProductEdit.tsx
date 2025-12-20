@@ -49,6 +49,7 @@ export function ProductEdit() {
   const [_storeId, setStoreId] = useState<string | null>(null)
   const [externalId, setExternalId] = useState<string | null>(null)
   const [attributes, setAttributes] = useState<ProductAttribute[]>([])
+  const [productType, setProductType] = useState<string>('simple')
 
   // Push to Store state
   const [stores, setStores] = useState<Store[]>([])
@@ -95,6 +96,7 @@ export function ProductEdit() {
       setStoreId(data.store_id || null)
       setExternalId(data.external_id || null)
       setAttributes(data.attributes || [])
+      setProductType(data.product_type || 'simple')
 
       // Load stores for push functionality
       const { data: storesData } = await supabase
@@ -178,7 +180,6 @@ export function ProductEdit() {
         }
 
         const wooProduct = transformToWooCommerce(product, categoryMap)
-        console.log('Pushing to WooCommerce:', JSON.stringify(wooProduct, null, 2))
         const result = await pushProductToWooCommerce(
           {
             siteUrl: store.store_url || '',
@@ -250,7 +251,18 @@ export function ProductEdit() {
     <div className="max-w-2xl">
       <div className="mb-6">
         <Link to="/products" className="text-blue-600 hover:underline text-sm">← Back to Products</Link>
-        <h1 className="text-2xl font-bold text-gray-900 mt-2">Edit Product</h1>
+        <div className="flex items-center gap-3 mt-2">
+          <h1 className="text-2xl font-bold text-gray-900">Edit Product</h1>
+          {productType && productType !== 'simple' && (
+            <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+              productType === 'variable' 
+                ? 'bg-purple-100 text-purple-700' 
+                : 'bg-gray-100 text-gray-600'
+            }`}>
+              {productType.charAt(0).toUpperCase() + productType.slice(1)}
+            </span>
+          )}
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white p-6 rounded-xl shadow-sm space-y-4">
