@@ -1,18 +1,16 @@
+// Vercel Serverless Function: WooCommerce Product Fetch
+// Gets products from WooCommerce store
+
 export default async function handler(req, res) {
-  // CORS headers
+  // CORS
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end()
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end()
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' })
-  }
-
-  const { credentials, endpoint = 'products' } = req.body
+  const { credentials, endpoint = 'products', params = {} } = req.body
 
   if (!credentials) {
     return res.status(400).json({ error: 'Missing credentials' })
@@ -27,26 +25,48 @@ export default async function handler(req, res) {
   try {
     const baseUrl = siteUrl.replace(/\/$/, '')
     
-    // Use query param auth (same as original working code)
-    const apiUrl = `${baseUrl}/wp-json/wc/v3/${endpoint}?per_page=100&consumer_key=${consumerKey}&consumer_secret=${consumerSecret}`
+    // Build query string
+    const queryParams = new URLSearchParams({
+      per_page: '100',
+      ...params
+    })
 
-    const response = await fetch(apiUrl)
+    const url = `${baseUrl}/wp-json/wc/v3/${endpoint}?${queryParams}`
+    
+    // Basic Auth
+    const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64')
+
+    console.log(`[WooCommerce] GET ${url}`)
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Basic ${auth}`
+      }
+    })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      console.error('WooCommerce fetch failed:', response.status, errorText)
+      const text = await response.text()
+      console.error(`[WooCommerce] Error ${response.status}:`, text)
       return res.status(response.status).json({ 
-        error: `WooCommerce API error: ${response.status}`,
-        details: errorText
+        error: `WooCommerce error: ${response.status}`,
+        details: text
       })
     }
 
     const data = await response.json()
-    return res.status(200).json(data)
+    
+    // Include pagination headers
+    return res.status(200).json({
+      data,
+      total: response.headers.get('x-wp-total'),
+      totalPages: response.headers.get('x-wp-totalpages')
+    })
+
   } catch (error) {
-    console.error('WooCommerce fetch error:', error)
+    console.error('[WooCommerce] Fetch error:', error)
     return res.status(500).json({ 
-      error: 'Internal server error',
+      error: 'Server error',
       message: error.message
     })
   }
