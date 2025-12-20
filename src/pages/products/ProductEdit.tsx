@@ -37,6 +37,7 @@ export function ProductEdit() {
   
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState(false)
   const [error, setError] = useState('')
 
   const [title, setTitle] = useState('')
@@ -176,7 +177,9 @@ export function ProductEdit() {
       return
     }
 
-    navigate('/products')
+    setSaving(false)
+    setSaveSuccess(true)
+    setTimeout(() => setSaveSuccess(false), 3000)  // Hide after 3 seconds
   }
 
   async function handlePushToStore() {
@@ -501,6 +504,7 @@ export function ProductEdit() {
 
       <form onSubmit={handleSubmit} className="bg-white p-6 rounded-xl shadow-sm space-y-4">
         {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm">{error}</div>}
+        {saveSuccess && <div className="bg-green-50 text-green-600 p-3 rounded-lg text-sm">✓ Changes saved</div>}
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
