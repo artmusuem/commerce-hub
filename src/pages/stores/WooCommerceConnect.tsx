@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { fetchWooCommerceProducts } from '../../lib/woocommerce'
 
 interface WooProduct {
   id: number
@@ -31,21 +32,14 @@ export function WooCommerceConnect() {
     setError('')
 
     try {
-      // Build WooCommerce API URL
-      const baseUrl = siteUrl.replace(/\/$/, '')
-      const apiUrl = `${baseUrl}/wp-json/wc/v3/products?per_page=100&consumer_key=${consumerKey}&consumer_secret=${consumerSecret}`
-
-      const response = await fetch(apiUrl)
+      // Use proxy to avoid CORS
+      const data = await fetchWooCommerceProducts({
+        siteUrl,
+        consumerKey,
+        consumerSecret
+      })
       
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('Invalid API credentials. Check your Consumer Key and Secret.')
-        }
-        throw new Error(`Failed to connect: ${response.status}`)
-      }
-
-      const data: WooProduct[] = await response.json()
-      setProducts(data)
+      setProducts(data as WooProduct[])
       setStep('preview')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Connection failed')
@@ -141,7 +135,7 @@ export function WooCommerceConnect() {
         // If store_id column doesn't exist, retry without it
         if (insertError.message.includes('store_id')) {
           const productsWithoutStore = transformedProducts.map(p => {
-            const { store_id, ...rest } = p
+            const { store_id: _store_id, ...rest } = p
             return rest
           })
           const { error: retryError } = await supabase
