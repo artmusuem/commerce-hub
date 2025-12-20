@@ -6,6 +6,7 @@ interface WooProduct {
   id: number
   name: string
   slug: string
+  sku: string
   description: string
   short_description: string
   price: string
@@ -13,6 +14,15 @@ interface WooProduct {
   images: { src: string }[]
   categories: { name: string }[]
   status: string
+  type: string
+  attributes: {
+    id: number
+    name: string
+    position: number
+    visible: boolean
+    variation: boolean
+    options: string[]
+  }[]
 }
 
 interface WooCategory {
@@ -151,6 +161,8 @@ export function WooCommerceConnect() {
             image_url: p.images?.[0]?.src || null,
             status: 'active' as const,
             external_id: String(p.id),  // WooCommerce product ID for sync
+            sku: p.sku || null,
+            attributes: p.attributes || [],  // WooCommerce attributes array
           }
           // Only add store_id if we have one (migration may not have run)
           if (storeId) {
@@ -166,9 +178,9 @@ export function WooCommerceConnect() {
 
       if (insertError) {
         // If optional columns don't exist, retry without them
-        if (insertError.message.includes('store_id') || insertError.message.includes('external_id')) {
+        if (insertError.message.includes('store_id') || insertError.message.includes('external_id') || insertError.message.includes('attributes') || insertError.message.includes('sku')) {
           const productsWithoutOptional = transformedProducts.map(p => {
-            const { store_id, external_id, ...rest } = p
+            const { store_id, external_id, attributes, sku, ...rest } = p
             return rest
           })
           const { error: retryError } = await supabase
