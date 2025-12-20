@@ -262,36 +262,52 @@ export function ProductEdit() {
           throw new Error('GitHub token not found for Gallery Store. Please update store credentials.')
         }
 
-        // Convert artist name to file ID (e.g., "Winslow Homer" -> "winslow-homer")
-        const artistId = artist.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+        // Valid collections
+        const validCollections = [
+          'winslow-homer', 'mary-cassatt', 'thomas-cole',
+          'frederic-remington', 'georgia-okeeffe', 'edward-hopper'
+        ]
+
+        // Use external_id as collection slug (set during import)
+        // Fall back to deriving from artist name if not available
+        let collectionSlug = externalId && validCollections.includes(externalId) 
+          ? externalId 
+          : artist.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
         
-        if (!artistId) {
-          throw new Error('Artist name is required for Gallery Store push')
+        if (!collectionSlug || !validCollections.includes(collectionSlug)) {
+          throw new Error(
+            `Cannot push to Gallery Store: "${artist}" is not a recognized collection.\n` +
+            `Valid collections: ${validCollections.join(', ')}`
+          )
         }
 
-        // Fetch all products for this artist from Supabase to push complete JSON
-        const { data: artistProducts, error: fetchError } = await supabase
+        // Fetch all products for this collection from Supabase to push complete JSON
+        const { data: collectionProducts, error: fetchError } = await supabase
           .from('products')
           .select('*')
           .eq('store_id', store.id)
-          .ilike('artist', `%${artist}%`)
+          .eq('external_id', collectionSlug)
 
         if (fetchError) throw fetchError
+
+        if (!collectionProducts || collectionProducts.length === 0) {
+          throw new Error(`No products found for collection: ${collectionSlug}`)
+        }
 
         // Push to Gallery Store
         const response = await fetch('/api/gallery-store/push', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            artistId,
-            artworks: artistProducts || [product],
+            artistId: collectionSlug,
+            artworks: collectionProducts,
             githubToken: credentials.github_token
           })
         })
 
         if (!response.ok) {
           const error = await response.json()
-          throw new Error(error.error || 'Failed to push to Gallery Store')
+          throw new Error(error.message || error.error || 'Failed to push to Gallery Store')
         }
 
         const result = await response.json()
@@ -326,12 +342,22 @@ export function ProductEdit() {
       return
     }
 
-    // Convert artist name to file ID
-    const artistId = artist.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-    if (!artistId) {
+    // Valid collections
+    const validCollections = [
+      'winslow-homer', 'mary-cassatt', 'thomas-cole',
+      'frederic-remington', 'georgia-okeeffe', 'edward-hopper'
+    ]
+
+    // Use external_id as collection slug (set during import)
+    // Fall back to deriving from artist name if not available
+    let collectionSlug = externalId && validCollections.includes(externalId)
+      ? externalId
+      : artist.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+
+    if (!collectionSlug || !validCollections.includes(collectionSlug)) {
       setPushResult({
         success: false,
-        message: 'Artist name is required for reset'
+        message: `Cannot reset: "${artist}" is not a recognized collection. Valid: ${validCollections.join(', ')}`
       })
       return
     }
@@ -344,7 +370,7 @@ export function ProductEdit() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          artistId,
+          artistId: collectionSlug,
           githubToken: credentials.github_token
         })
       })
