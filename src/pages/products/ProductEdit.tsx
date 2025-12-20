@@ -108,7 +108,7 @@ export function ProductEdit() {
       const { data: storesData } = await supabase
         .from('stores')
         .select('id, platform, store_name, store_url, api_credentials')
-        .in('platform', ['woocommerce', 'shopify'])
+        .in('platform', ['woocommerce', 'shopify', 'gallery-store'])
       
       setStores(storesData || [])
       setLoading(false)
@@ -253,6 +253,52 @@ export function ProductEdit() {
           success: true,
           message: `Product pushed to Shopify! ID: ${result.id}`
         })
+      } else if (store.platform === 'gallery-store') {
+        // Gallery Store push - updates JSON file in GitHub repo
+        const credentials = store.api_credentials as { github_token?: string } | null
+        
+        if (!credentials?.github_token) {
+          throw new Error('GitHub token not found for Gallery Store. Please update store credentials.')
+        }
+
+        // Convert artist name to file ID (e.g., "Winslow Homer" -> "winslow-homer")
+        const artistId = artist.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+        
+        if (!artistId) {
+          throw new Error('Artist name is required for Gallery Store push')
+        }
+
+        // Fetch all products for this artist from Supabase to push complete JSON
+        const { data: artistProducts, error: fetchError } = await supabase
+          .from('products')
+          .select('*')
+          .eq('store_id', store.id)
+          .ilike('artist', `%${artist}%`)
+
+        if (fetchError) throw fetchError
+
+        // Push to Gallery Store
+        const response = await fetch('/api/gallery-store/push', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            artistId,
+            artworks: artistProducts || [product],
+            githubToken: credentials.github_token
+          })
+        })
+
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.error || 'Failed to push to Gallery Store')
+        }
+
+        const result = await response.json()
+        
+        setPushResult({
+          success: true,
+          message: `Pushed to Gallery Store! ${result.message}`
+        })
       }
     } catch (err) {
       setPushResult({
@@ -326,7 +372,7 @@ export function ProductEdit() {
   }
 
   const pushableStores = stores.filter(s => 
-    s.platform === 'woocommerce' || s.platform === 'shopify'
+    s.platform === 'woocommerce' || s.platform === 'shopify' || s.platform === 'gallery-store'
   )
 
   return (
