@@ -8,7 +8,7 @@ import { pushProductToShopify } from '../../lib/shopify'
 interface Store {
   id: string
   platform: string
-  shop_name: string | null
+  store_name: string | null
   store_url: string | null
   api_credentials: Record<string, string> | null
 }
@@ -29,7 +29,7 @@ export function ProductEdit() {
   const [imageUrl, setImageUrl] = useState('')
   const [status, setStatus] = useState('draft')
   const [sku, setSku] = useState('')
-  const [storeId, setStoreId] = useState<string | null>(null)
+  const [_storeId, setStoreId] = useState<string | null>(null)
 
   // Push to Store state
   const [stores, setStores] = useState<Store[]>([])
@@ -67,7 +67,7 @@ export function ProductEdit() {
       // Load stores for push functionality
       const { data: storesData } = await supabase
         .from('stores')
-        .select('id, platform, shop_name, store_url, api_credentials')
+        .select('id, platform, store_name, store_url, api_credentials')
         .in('platform', ['woocommerce', 'shopify'])
       
       setStores(storesData || [])
@@ -162,7 +162,7 @@ export function ProductEdit() {
         }
 
         const shopDomain = store.store_url?.replace(/^https?:\/\//, '').replace(/\/$/, '') || ''
-        const shopifyProduct = transformToShopify(product, store.shop_name || 'Commerce Hub')
+        const shopifyProduct = transformToShopify(product, store.store_name || 'Commerce Hub')
         
         const result = await pushProductToShopify(
           shopDomain,
@@ -347,7 +347,7 @@ export function ProductEdit() {
               <option value="">Select a store...</option>
               {pushableStores.map(store => (
                 <option key={store.id} value={store.id}>
-                  {store.shop_name || store.store_url} ({store.platform})
+                  {store.store_name || store.store_url} ({store.platform})
                 </option>
               ))}
             </select>
