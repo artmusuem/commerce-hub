@@ -17,6 +17,7 @@ export interface CommerceHubProduct {
   sku: string | null
   status: 'draft' | 'active' | 'archived'
   store_id?: string
+  product_type?: 'simple' | 'variable' | 'grouped' | 'external'
   attributes?: {
     id?: number
     name: string
