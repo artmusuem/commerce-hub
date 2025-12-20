@@ -12,6 +12,16 @@ interface WooCredentials {
   categories?: { id: number; name: string }[]
 }
 
+interface ProductAttribute {
+  id: number
+  name: string
+  slug?: string
+  position: number
+  visible: boolean
+  variation: boolean
+  options: string[]
+}
+
 interface Store {
   id: string
   platform: string
@@ -38,6 +48,7 @@ export function ProductEdit() {
   const [sku, setSku] = useState('')
   const [_storeId, setStoreId] = useState<string | null>(null)
   const [externalId, setExternalId] = useState<string | null>(null)
+  const [attributes, setAttributes] = useState<ProductAttribute[]>([])
 
   // Push to Store state
   const [stores, setStores] = useState<Store[]>([])
@@ -83,6 +94,7 @@ export function ProductEdit() {
       setSku(data.sku || '')
       setStoreId(data.store_id || null)
       setExternalId(data.external_id || null)
+      setAttributes(data.attributes || [])
 
       // Load stores for push functionality
       const { data: storesData } = await supabase
@@ -352,6 +364,45 @@ export function ProductEdit() {
           />
           {imageUrl && <img src={imageUrl} alt="Preview" className="mt-2 w-32 h-32 object-cover rounded-lg bg-gray-100" />}
         </div>
+
+        {/* Attributes Section */}
+        {attributes.length > 0 && (
+          <div className="border-t pt-4 mt-2">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Product Attributes
+              <span className="ml-2 text-xs font-normal text-gray-500">
+                (from WooCommerce)
+              </span>
+            </label>
+            <div className="space-y-3">
+              {attributes.map((attr, index) => (
+                <div key={attr.id || index} className="bg-gray-50 p-3 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium text-gray-900">{attr.name}</span>
+                    <div className="flex gap-2 text-xs">
+                      {attr.visible && (
+                        <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded">Visible</span>
+                      )}
+                      {attr.variation && (
+                        <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded">Used for variations</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {attr.options.map((option, optIndex) => (
+                      <span 
+                        key={optIndex}
+                        className="px-2 py-1 bg-white border border-gray-200 rounded text-sm text-gray-700"
+                      >
+                        {option}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="flex gap-3 pt-4">
           <button
