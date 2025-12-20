@@ -6,8 +6,8 @@ import { initiateEtsyOAuth } from '../../lib/etsy'
 interface Store {
   id: string
   platform: string
-  shop_name: string | null
-  shop_id: string | null
+  name: string
+  url: string | null
   is_active: boolean
   last_sync_at: string | null
   product_count?: number
@@ -32,7 +32,6 @@ export function StoresIndex() {
   }, [])
 
   async function loadStores() {
-    // Load stores
     const { data: storesData } = await supabase
       .from('stores')
       .select('*')
@@ -44,7 +43,6 @@ export function StoresIndex() {
       return
     }
 
-    // Get product counts for each store
     const storesWithCounts = await Promise.all(
       storesData.map(async (store) => {
         const { count } = await supabase
@@ -71,22 +69,21 @@ export function StoresIndex() {
   }
 
   async function disconnectStore(e: React.MouseEvent, id: string) {
-    e.stopPropagation() // Prevent row click
+    e.stopPropagation()
     if (!confirm('Disconnect this store? Products will remain but be unlinked.')) return
     
-    // Unlink products first
     await supabase
       .from('products')
       .update({ store_id: null })
       .eq('store_id', id)
     
-    // Delete store
     await supabase.from('stores').delete().eq('id', id)
     setStores(stores.filter(s => s.id !== id))
   }
 
-  const etsyConnected = stores.some(s => s.platform === 'etsy' && s.is_active)
+  const etsyConnected = stores.some(s => s.platform === 'etsy')
   const wooConnected = stores.some(s => s.platform === 'woocommerce')
+  const shopifyConnected = stores.some(s => s.platform === 'shopify')
 
   return (
     <div>
@@ -95,12 +92,6 @@ export function StoresIndex() {
           <h1 className="text-2xl font-bold text-gray-900">Connected Stores</h1>
           <p className="text-gray-600">Manage your marketplace connections</p>
         </div>
-        <Link
-          to="/stores/link-products"
-          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm"
-        >
-          🔗 Link Orphan Products
-        </Link>
       </div>
 
       {/* Import Existing Store */}
@@ -122,7 +113,7 @@ export function StoresIndex() {
       {/* Connect New Store */}
       <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Add Store Connection</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {/* Etsy */}
           <div className="border rounded-lg p-4">
             <div className="flex items-center gap-3 mb-3">
@@ -166,8 +157,8 @@ export function StoresIndex() {
             )}
           </div>
 
-          {/* Shopify - Coming Soon */}
-          <div className="border rounded-lg p-4 opacity-50">
+          {/* Shopify - NOW ACTIVE */}
+          <div className="border rounded-lg p-4 border-green-200 bg-green-50">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center text-white font-bold">S</div>
               <div>
@@ -175,7 +166,16 @@ export function StoresIndex() {
                 <p className="text-xs text-gray-500">E-commerce platform</p>
               </div>
             </div>
-            <span className="text-sm text-gray-400">Coming Soon</span>
+            {shopifyConnected ? (
+              <span className="text-sm text-green-600">✓ Connected</span>
+            ) : (
+              <Link
+                to="/stores/shopify"
+                className="block w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm text-center"
+              >
+                Connect Shopify
+              </Link>
+            )}
           </div>
 
           {/* Amazon - Coming Soon */}
@@ -225,7 +225,7 @@ export function StoresIndex() {
                 return (
                   <tr 
                     key={store.id} 
-                    onClick={() => navigate(`/stores/${store.id}`)}
+                    onClick={() => navigate(`/products?store=${store.id}`)}
                     className={`${config.hoverBg} cursor-pointer transition-colors`}
                   >
                     <td className="px-6 py-4">
@@ -234,7 +234,7 @@ export function StoresIndex() {
                           {config.icon}
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900">{store.shop_name || store.platform}</p>
+                          <p className="font-medium text-gray-900">{store.name || store.platform}</p>
                           <p className="text-xs text-gray-500 capitalize">{store.platform}</p>
                         </div>
                       </div>
@@ -244,10 +244,8 @@ export function StoresIndex() {
                       <span className="text-gray-500 text-sm ml-1">products</span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        store.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
-                      }`}>
-                        {store.is_active ? 'Active' : 'Inactive'}
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                        Active
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500">
