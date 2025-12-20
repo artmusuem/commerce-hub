@@ -189,6 +189,26 @@ export function ProductEdit() {
     setPushResult(null)
 
     try {
+      // Auto-save to Supabase first
+      const { error: saveError } = await supabase
+        .from('products')
+        .update({
+          title,
+          description: description || null,
+          price: parseFloat(price) || 0,
+          artist: artist || null,
+          category: category || null,
+          image_url: imageUrl || null,
+          status,
+          sku: sku || null,
+          attributes,
+        })
+        .eq('id', id)
+
+      if (saveError) {
+        throw new Error(`Failed to save: ${saveError.message}`)
+      }
+
       const product = {
         id,
         title,
@@ -881,7 +901,7 @@ export function ProductEdit() {
                   Pushing...
                 </span>
               ) : (
-                '🚀 Push to Store'
+                '🚀 Save & Publish'
               )}
             </button>
             {/* Reset to Demo button - only for Gallery Store */}
