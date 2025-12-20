@@ -6,7 +6,7 @@ import type { Product } from '../../types/database'
 interface Store {
   id: string
   platform: string
-  shop_name: string | null
+  store_name: string | null
 }
 
 function getThumbnail(url: string, size: number = 100): string {
@@ -46,7 +46,7 @@ export function ProductsIndex() {
   async function loadData() {
     const { data: storesData } = await supabase
       .from('stores')
-      .select('id, platform, shop_name')
+      .select('id, platform, store_name')
       .order('created_at', { ascending: false })
     setStores(storesData || [])
 
@@ -159,7 +159,7 @@ export function ProductsIndex() {
     ? null 
     : selectedStore === 'unassigned'
     ? 'Unassigned'
-    : stores.find(s => s.id === selectedStore)?.shop_name || stores.find(s => s.id === selectedStore)?.platform
+    : stores.find(s => s.id === selectedStore)?.store_name || stores.find(s => s.id === selectedStore)?.platform
 
   const allSelected = filteredProducts.length > 0 && selectedIds.size === filteredProducts.length
 
@@ -230,7 +230,7 @@ export function ProductsIndex() {
                       selectedStore === store.id ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
-                    {store.shop_name || store.platform} ({count})
+                    {store.store_name || store.platform} ({count})
                   </button>
                 )
               })}
@@ -319,7 +319,7 @@ export function ProductsIndex() {
                     <td className="px-4 py-4">
                       {store ? (
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${platformColors[store.platform] || 'bg-gray-100 text-gray-700'}`}>
-                          {store.shop_name || store.platform}
+                          {store.store_name || store.platform}
                         </span>
                       ) : (
                         <span className="text-gray-400 text-sm">—</span>
