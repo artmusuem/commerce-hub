@@ -128,6 +128,7 @@ export function ProductEdit() {
         image_url: imageUrl || null,
         status,
         sku: sku || null,
+        attributes,  // Save edited attributes
       })
       .eq('id', id)
 
@@ -379,38 +380,119 @@ export function ProductEdit() {
           {imageUrl && <img src={imageUrl} alt="Preview" className="mt-2 w-32 h-32 object-cover rounded-lg bg-gray-100" />}
         </div>
 
-        {/* Attributes Section */}
+        {/* Attributes Section - Editable */}
         {attributes.length > 0 && (
           <div className="border-t pt-4 mt-2">
             <label className="block text-sm font-medium text-gray-700 mb-3">
               Product Attributes
               <span className="ml-2 text-xs font-normal text-gray-500">
-                (from WooCommerce)
+                (editable)
               </span>
             </label>
             <div className="space-y-3">
-              {attributes.map((attr, index) => (
-                <div key={attr.id || index} className="bg-gray-50 p-3 rounded-lg">
+              {attributes.map((attr, attrIndex) => (
+                <div key={attr.id || attrIndex} className="bg-gray-50 p-3 rounded-lg">
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-medium text-gray-900">{attr.name}</span>
                     <div className="flex gap-2 text-xs">
-                      {attr.visible && (
-                        <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded">Visible</span>
-                      )}
-                      {attr.variation && (
-                        <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded">Used for variations</span>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = [...attributes]
+                          updated[attrIndex] = { ...attr, visible: !attr.visible }
+                          setAttributes(updated)
+                        }}
+                        className={`px-2 py-0.5 rounded cursor-pointer transition-colors ${
+                          attr.visible 
+                            ? 'bg-green-100 text-green-700 hover:bg-green-200' 
+                            : 'bg-gray-200 text-gray-500 hover:bg-gray-300'
+                        }`}
+                      >
+                        {attr.visible ? 'Visible' : 'Hidden'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = [...attributes]
+                          updated[attrIndex] = { ...attr, variation: !attr.variation }
+                          setAttributes(updated)
+                        }}
+                        className={`px-2 py-0.5 rounded cursor-pointer transition-colors ${
+                          attr.variation 
+                            ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
+                            : 'bg-gray-200 text-gray-500 hover:bg-gray-300'
+                        }`}
+                      >
+                        {attr.variation ? 'Variations' : 'No variations'}
+                      </button>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="flex flex-wrap gap-1.5 mb-2">
                     {attr.options.map((option, optIndex) => (
                       <span 
                         key={optIndex}
-                        className="px-2 py-1 bg-white border border-gray-200 rounded text-sm text-gray-700"
+                        className="px-2 py-1 bg-white border border-gray-200 rounded text-sm text-gray-700 flex items-center gap-1 group"
                       >
                         {option}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = [...attributes]
+                            updated[attrIndex] = {
+                              ...attr,
+                              options: attr.options.filter((_, i) => i !== optIndex)
+                            }
+                            setAttributes(updated)
+                          }}
+                          className="text-gray-400 hover:text-red-500 ml-1"
+                          title="Remove option"
+                        >
+                          ×
+                        </button>
                       </span>
                     ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Add option..."
+                      className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          const input = e.target as HTMLInputElement
+                          const value = input.value.trim()
+                          if (value && !attr.options.includes(value)) {
+                            const updated = [...attributes]
+                            updated[attrIndex] = {
+                              ...attr,
+                              options: [...attr.options, value]
+                            }
+                            setAttributes(updated)
+                            input.value = ''
+                          }
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const input = (e.target as HTMLElement).previousElementSibling as HTMLInputElement
+                        const value = input.value.trim()
+                        if (value && !attr.options.includes(value)) {
+                          const updated = [...attributes]
+                          updated[attrIndex] = {
+                            ...attr,
+                            options: [...attr.options, value]
+                          }
+                          setAttributes(updated)
+                          input.value = ''
+                        }
+                      }}
+                      className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                    >
+                      Add
+                    </button>
                   </div>
                 </div>
               ))}
