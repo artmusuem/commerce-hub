@@ -1,7 +1,17 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { fetchShopifyProducts, ShopifyProduct } from '../../lib/shopify'
+
+interface ShopifyProduct {
+  id: number
+  title: string
+  body_html: string
+  vendor: string
+  product_type: string
+  status: string
+  variants: { price: string; sku: string }[]
+  images: { src: string }[]
+}
 
 interface ShopifyStore {
   id: string
@@ -49,11 +59,24 @@ export default function ShopifyImport() {
     setError('')
 
     try {
-      const shopifyProducts = await fetchShopifyProducts(
-        selectedStore.store_url,
-        selectedStore.api_credentials.access_token
-      )
-      setProducts(shopifyProducts)
+      // Use serverless proxy to avoid CORS
+      const response = await fetch('/api/shopify/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          shop: selectedStore.store_url,
+          accessToken: selectedStore.api_credentials.access_token,
+          action: 'fetch'
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to fetch products')
+      }
+
+      const data = await response.json()
+      setProducts(data.products || [])
       setStep('preview')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch products')
