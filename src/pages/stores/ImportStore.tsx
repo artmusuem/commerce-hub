@@ -109,7 +109,7 @@ export function ImportStore() {
           // Transform to products format
           const products = artworks
             .filter(art => art.title && art.image)
-            .map(art => {
+            .map((art, index) => {
               const base: Record<string, unknown> = {
                 user_id: user.id,
                 title: art.title,
@@ -119,7 +119,10 @@ export function ImportStore() {
                 image_url: art.image,
                 category: 'Art Print',
                 status: 'active',
-                smithsonian_id: art.smithsonian_id || null
+                smithsonian_id: art.smithsonian_id || null,
+                // Store collection slug for push/reset functionality
+                external_id: artistId,
+                sku: `GS-${artistId.toUpperCase()}-${String(index + 1).padStart(3, '0')}`
               }
               // Only add store_id if we have one (migration may not have run)
               if (storeId) {
