@@ -1,6 +1,5 @@
-// Force rebuild - Save stays on page
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { transformToWooCommerce, transformToShopify } from '../../lib/transforms'
 import type { WooCategoryMap } from '../../lib/transforms'
@@ -34,7 +33,6 @@ interface Store {
 
 export function ProductEdit() {
   const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
   
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
