@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { transformToWooCommerce, transformToShopify } from '../../lib/transforms'
 import type { WooCategoryMap } from '../../lib/transforms'
-import { pushProductToWooCommerce, fetchProductVariations } from '../../lib/woocommerce'
+import { pushProductToWooCommerce, fetchProductVariations, updateProductVariation } from '../../lib/woocommerce'
 import type { WooCommerceVariation } from '../../lib/woocommerce'
 import { pushProductToShopify } from '../../lib/shopify'
 
@@ -54,6 +54,8 @@ export function ProductEdit() {
   const [newOptionInputs, setNewOptionInputs] = useState<Record<number, string>>({})  // Track new option input per attribute
   const [variations, setVariations] = useState<WooCommerceVariation[]>([])
   const [loadingVariations, setLoadingVariations] = useState(false)
+  const [editedVariationPrices, setEditedVariationPrices] = useState<Record<number, string>>({})
+  const [savingVariationId, setSavingVariationId] = useState<number | null>(null)
 
   // Push to Store state
   const [stores, setStores] = useState<Store[]>([])
@@ -259,6 +261,50 @@ export function ProductEdit() {
       })
     } finally {
       setPushing(false)
+    }
+  }
+
+  async function handleSaveVariationPrice(variationId: number) {
+    const newPrice = editedVariationPrices[variationId]
+    if (!newPrice || !externalId) return
+    
+    const wooStore = stores.find(s => s.platform === 'woocommerce')
+    if (!wooStore) return
+    
+    const credentials = wooStore.api_credentials as WooCredentials | null
+    if (!credentials?.consumer_key || !credentials?.consumer_secret) return
+    
+    setSavingVariationId(variationId)
+    try {
+      const updated = await updateProductVariation(
+        {
+          siteUrl: wooStore.store_url || '',
+          consumerKey: credentials.consumer_key,
+          consumerSecret: credentials.consumer_secret
+        },
+        parseInt(externalId),
+        variationId,
+        { regular_price: newPrice }
+      )
+      
+      // Update local state
+      setVariations(prev => prev.map(v => 
+        v.id === variationId 
+          ? { ...v, regular_price: updated.regular_price, price: updated.price }
+          : v
+      ))
+      
+      // Clear edited state
+      setEditedVariationPrices(prev => {
+        const next = { ...prev }
+        delete next[variationId]
+        return next
+      })
+    } catch (err) {
+      console.error('Failed to save variation price:', err)
+      alert('Failed to save price: ' + (err instanceof Error ? err.message : 'Unknown error'))
+    } finally {
+      setSavingVariationId(null)
     }
   }
 
@@ -557,10 +603,18 @@ export function ProductEdit() {
                       <th className="px-3 py-2 text-left font-medium text-gray-700">SKU</th>
                       <th className="px-3 py-2 text-left font-medium text-gray-700">Price</th>
                       <th className="px-3 py-2 text-left font-medium text-gray-700">Stock</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-700">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {variations.map((variation) => (
+                    {variations.map((variation) => {
+                      const isEditing = editedVariationPrices[variation.id] !== undefined
+                      const currentPrice = isEditing 
+                        ? editedVariationPrices[variation.id] 
+                        : (variation.regular_price || variation.price || '0')
+                      const hasChanged = isEditing && editedVariationPrices[variation.id] !== (variation.regular_price || variation.price || '0')
+                      
+                      return (
                       <tr key={variation.id} className="hover:bg-gray-50">
                         <td className="px-3 py-2">
                           <div className="flex flex-wrap gap-1">
@@ -575,9 +629,24 @@ export function ProductEdit() {
                           {variation.sku || '-'}
                         </td>
                         <td className="px-3 py-2">
-                          <span className="font-medium">${variation.regular_price || variation.price || '0'}</span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-gray-400">$</span>
+                            <input
+                              type="text"
+                              value={currentPrice}
+                              onChange={(e) => {
+                                setEditedVariationPrices(prev => ({
+                                  ...prev,
+                                  [variation.id]: e.target.value
+                                }))
+                              }}
+                              className={`w-20 px-2 py-1 text-sm border rounded focus:ring-1 focus:ring-blue-500 outline-none ${
+                                hasChanged ? 'border-blue-400 bg-blue-50' : 'border-gray-300'
+                              }`}
+                            />
+                          </div>
                           {variation.sale_price && (
-                            <span className="ml-2 text-green-600 text-xs">
+                            <span className="text-green-600 text-xs">
                               Sale: ${variation.sale_price}
                             </span>
                           )}
@@ -592,8 +661,20 @@ export function ProductEdit() {
                             {variation.stock_quantity !== null && ` (${variation.stock_quantity})`}
                           </span>
                         </td>
+                        <td className="px-3 py-2">
+                          {hasChanged && (
+                            <button
+                              type="button"
+                              onClick={() => handleSaveVariationPrice(variation.id)}
+                              disabled={savingVariationId === variation.id}
+                              className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                            >
+                              {savingVariationId === variation.id ? 'Saving...' : 'Save'}
+                            </button>
+                          )}
+                        </td>
                       </tr>
-                    ))}
+                    )})}
                   </tbody>
                 </table>
               </div>
@@ -603,7 +684,7 @@ export function ProductEdit() {
               </div>
             )}
             <p className="mt-2 text-xs text-gray-500">
-              Note: Variation prices are managed directly in WooCommerce. Each variation is a separate product with its own price.
+              Edit prices inline and click Save to update WooCommerce.
             </p>
           </div>
         )}
