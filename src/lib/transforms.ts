@@ -36,6 +36,7 @@ export interface ShopifyPushPayload {
   body_html: string
   vendor: string
   product_type: string
+  tags?: string
   status: 'active' | 'draft' | 'archived'
   variants: {
     price: string
@@ -115,7 +116,8 @@ export function transformToWooCommerce(
  */
 export function transformToShopify(
   product: CommerceHubProduct,
-  vendorName: string = 'Commerce Hub'
+  vendorName: string = 'Commerce Hub',
+  shopifyTags?: string
 ): ShopifyPushPayload {
   // Map Commerce Hub status to Shopify status
   const statusMap: Record<string, 'active' | 'draft' | 'archived'> = {
@@ -138,6 +140,7 @@ export function transformToShopify(
     body_html: bodyHtml,
     vendor: vendorName,
     product_type: product.category || 'Art Print',
+    tags: shopifyTags || '',
     status: statusMap[product.status] || 'draft',
     variants: [{
       price: product.price.toFixed(2),
