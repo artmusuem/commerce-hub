@@ -35,7 +35,7 @@ export interface WooCommercePushPayload {
 
 /**
  * Push a product to WooCommerce store
- * Note: This goes through our serverless function to keep secrets secure
+ * Note: This goes through our serverless function to avoid CORS
  */
 export async function pushProductToWooCommerce(
   credentials: WooCommerceCredentials,
@@ -62,21 +62,26 @@ export async function pushProductToWooCommerce(
 
 /**
  * Fetch products from WooCommerce
+ * Note: This goes through our serverless function to avoid CORS
  */
 export async function fetchWooCommerceProducts(
   credentials: WooCommerceCredentials
 ): Promise<WooCommerceProduct[]> {
-  const { siteUrl, consumerKey, consumerSecret } = credentials
-  const baseUrl = siteUrl.replace(/\/$/, '')
-  const apiUrl = `${baseUrl}/wp-json/wc/v3/products?per_page=100&consumer_key=${consumerKey}&consumer_secret=${consumerSecret}`
-
-  const response = await fetch(apiUrl)
+  const response = await fetch('/api/woocommerce/fetch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      credentials,
+      endpoint: 'products'
+    })
+  })
 
   if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
     if (response.status === 401) {
       throw new Error('Invalid API credentials')
     }
-    throw new Error(`WooCommerce API error: ${response.status}`)
+    throw new Error(errorData.error || `WooCommerce API error: ${response.status}`)
   }
 
   return response.json()
@@ -84,15 +89,19 @@ export async function fetchWooCommerceProducts(
 
 /**
  * Get WooCommerce categories
+ * Note: This goes through our serverless function to avoid CORS
  */
 export async function fetchWooCommerceCategories(
   credentials: WooCommerceCredentials
 ): Promise<{ id: number; name: string }[]> {
-  const { siteUrl, consumerKey, consumerSecret } = credentials
-  const baseUrl = siteUrl.replace(/\/$/, '')
-  const apiUrl = `${baseUrl}/wp-json/wc/v3/products/categories?per_page=100&consumer_key=${consumerKey}&consumer_secret=${consumerSecret}`
-
-  const response = await fetch(apiUrl)
+  const response = await fetch('/api/woocommerce/fetch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      credentials,
+      endpoint: 'products/categories'
+    })
+  })
 
   if (!response.ok) {
     return []
