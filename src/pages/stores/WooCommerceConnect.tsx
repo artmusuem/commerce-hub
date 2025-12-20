@@ -163,6 +163,7 @@ export function WooCommerceConnect() {
             external_id: String(p.id),  // WooCommerce product ID for sync
             sku: p.sku || null,
             attributes: p.attributes || [],  // WooCommerce attributes array
+            product_type: p.type || 'simple',  // simple, variable, grouped, external
           }
           // Only add store_id if we have one (migration may not have run)
           if (storeId) {
@@ -178,9 +179,9 @@ export function WooCommerceConnect() {
 
       if (insertError) {
         // If optional columns don't exist, retry without them
-        if (insertError.message.includes('store_id') || insertError.message.includes('external_id') || insertError.message.includes('attributes') || insertError.message.includes('sku')) {
+        if (insertError.message.includes('store_id') || insertError.message.includes('external_id') || insertError.message.includes('attributes') || insertError.message.includes('sku') || insertError.message.includes('product_type')) {
           const productsWithoutOptional = transformedProducts.map(p => {
-            const { store_id, external_id, attributes, sku, ...rest } = p
+            const { store_id, external_id, attributes, sku, product_type, ...rest } = p
             return rest
           })
           const { error: retryError } = await supabase
