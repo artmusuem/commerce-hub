@@ -29,7 +29,7 @@ export function ProductEdit() {
   const [imageUrl, setImageUrl] = useState('')
   const [status, setStatus] = useState('draft')
   const [sku, setSku] = useState('')
-  const [storeId, setStoreId] = useState<string | null>(null)
+  const [_storeId, setStoreId] = useState<string | null>(null)
 
   // Push to Store state
   const [stores, setStores] = useState<Store[]>([])
