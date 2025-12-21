@@ -5,7 +5,7 @@ import { AdminLayout } from './components/layout/AdminLayout'
 import { Login } from './pages/auth/Login'
 import { Register } from './pages/auth/Register'
 import { Dashboard } from './pages/dashboard/Dashboard'
-import { ProductsGrid } from './pages/products/ProductsGrid'
+import { ProductsIndex } from './pages/products/ProductsIndex'
 import { ProductNew } from './pages/products/ProductNew'
 import { ProductEdit } from './pages/products/ProductEdit'
 import { ImportJSON } from './pages/products/ImportJSON'
@@ -29,7 +29,7 @@ export default function App() {
           <Route path="/" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
-            <Route path="products" element={<ProductsGrid />} />
+            <Route path="products" element={<ProductsIndex />} />
             <Route path="products/new" element={<ProductNew />} />
             <Route path="products/import" element={<ImportJSON />} />
             <Route path="products/:id" element={<ProductEdit />} />
