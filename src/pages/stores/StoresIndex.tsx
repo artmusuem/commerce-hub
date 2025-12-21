@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { initiateEtsyOAuth } from '../../lib/etsy'
+import { transformToWooCommerce, transformToShopify } from '../../lib/transforms'
+import { pushProductToWooCommerce } from '../../lib/woocommerce'
 
 interface Store {
   id: string
@@ -11,6 +13,8 @@ interface Store {
   is_active: boolean
   last_sync_at: string | null
   product_count?: number
+  store_url?: string
+  api_credentials?: Record<string, unknown>
 }
 
 const platformConfig: Record<string, { color: string; bgColor: string; hoverBg: string; icon: string }> = {
@@ -26,6 +30,11 @@ export function StoresIndex() {
   const [stores, setStores] = useState<Store[]>([])
   const [loading, setLoading] = useState(true)
   const [connecting, setConnecting] = useState(false)
+  
+  // Bulk push state
+  const [bulkPushing, setBulkPushing] = useState<string | null>(null) // 'woocommerce' | 'shopify' | null
+  const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0, success: 0, failed: 0 })
+  const [bulkResult, setBulkResult] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
   useEffect(() => {
     loadStores()
@@ -79,6 +88,108 @@ export function StoresIndex() {
     
     await supabase.from('stores').delete().eq('id', id)
     setStores(stores.filter(s => s.id !== id))
+  }
+
+  async function handleBulkPush(targetPlatform: 'woocommerce' | 'shopify') {
+    // Find Gallery Store
+    const galleryStore = stores.find(s => s.platform === 'gallery-store')
+    if (!galleryStore) {
+      setBulkResult({ message: 'Gallery Store not found', type: 'error' })
+      return
+    }
+
+    // Find target store
+    const targetStore = stores.find(s => s.platform === targetPlatform)
+    if (!targetStore) {
+      setBulkResult({ message: `${targetPlatform} store not connected`, type: 'error' })
+      return
+    }
+
+    // Fetch full store data with credentials
+    const { data: targetStoreData } = await supabase
+      .from('stores')
+      .select('*')
+      .eq('id', targetStore.id)
+      .single()
+
+    if (!targetStoreData?.api_credentials) {
+      setBulkResult({ message: `${targetPlatform} API credentials not found`, type: 'error' })
+      return
+    }
+
+    // Fetch all Gallery Store products
+    const { data: products, error } = await supabase
+      .from('products')
+      .select('*')
+      .eq('store_id', galleryStore.id)
+
+    if (error || !products) {
+      setBulkResult({ message: 'Failed to fetch Gallery Store products', type: 'error' })
+      return
+    }
+
+    setBulkPushing(targetPlatform)
+    setBulkProgress({ current: 0, total: products.length, success: 0, failed: 0 })
+    setBulkResult(null)
+
+    let success = 0
+    let failed = 0
+
+    for (let i = 0; i < products.length; i++) {
+      const product = products[i]
+      setBulkProgress(prev => ({ ...prev, current: i + 1 }))
+
+      try {
+        if (targetPlatform === 'woocommerce') {
+          const credentials = targetStoreData.api_credentials as { consumer_key: string; consumer_secret: string }
+          const wooProduct = transformToWooCommerce(product)
+          await pushProductToWooCommerce(
+            {
+              siteUrl: targetStoreData.store_url || '',
+              consumerKey: credentials.consumer_key,
+              consumerSecret: credentials.consumer_secret
+            },
+            wooProduct,
+            undefined // Always create new (don't update)
+          )
+          success++
+        } else if (targetPlatform === 'shopify') {
+          const credentials = targetStoreData.api_credentials as { access_token: string }
+          const shopDomain = targetStoreData.store_url?.replace(/^https?:\/\//, '').replace(/\/$/, '') || ''
+          const shopifyProduct = transformToShopify(product, targetStoreData.store_name || 'Commerce Hub')
+          
+          const response = await fetch('/api/shopify/products', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              shop: shopDomain,
+              accessToken: credentials.access_token,
+              action: 'create',
+              product: shopifyProduct
+            })
+          })
+
+          if (!response.ok) {
+            throw new Error('Shopify push failed')
+          }
+          success++
+        }
+      } catch (err) {
+        console.error(`Failed to push product ${product.title}:`, err)
+        failed++
+      }
+
+      setBulkProgress(prev => ({ ...prev, success, failed }))
+      
+      // Small delay to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 200))
+    }
+
+    setBulkPushing(null)
+    setBulkResult({
+      message: `Completed: ${success} succeeded, ${failed} failed`,
+      type: failed === 0 ? 'success' : 'error'
+    })
   }
 
   const etsyConnected = stores.some(s => s.platform === 'etsy')
@@ -268,7 +379,7 @@ export function StoresIndex() {
                       {store.last_sync_at ? new Date(store.last_sync_at).toLocaleDateString() : 'Never'}
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <Link
                           to={`/products?store=${store.id}`}
                           onClick={(e) => e.stopPropagation()}
@@ -276,6 +387,31 @@ export function StoresIndex() {
                         >
                           View Products
                         </Link>
+                        {/* Bulk push buttons for Gallery Store */}
+                        {store.platform === 'gallery-store' && wooConnected && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleBulkPush('woocommerce')
+                            }}
+                            disabled={bulkPushing !== null}
+                            className="px-3 py-1.5 text-sm text-purple-600 hover:bg-purple-50 rounded-lg transition-colors disabled:opacity-50"
+                          >
+                            {bulkPushing === 'woocommerce' ? `Pushing ${bulkProgress.current}/${bulkProgress.total}...` : '→ WooCommerce'}
+                          </button>
+                        )}
+                        {store.platform === 'gallery-store' && shopifyConnected && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleBulkPush('shopify')
+                            }}
+                            disabled={bulkPushing !== null}
+                            className="px-3 py-1.5 text-sm text-green-600 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-50"
+                          >
+                            {bulkPushing === 'shopify' ? `Pushing ${bulkProgress.current}/${bulkProgress.total}...` : '→ Shopify'}
+                          </button>
+                        )}
                         <button
                           onClick={(e) => disconnectStore(e, store.id)}
                           className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
@@ -283,6 +419,12 @@ export function StoresIndex() {
                           Disconnect
                         </button>
                       </div>
+                      {/* Show bulk push result */}
+                      {store.platform === 'gallery-store' && bulkResult && (
+                        <div className={`mt-2 text-xs ${bulkResult.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                          {bulkResult.message}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 )
