@@ -97,39 +97,64 @@ export default function ShopifyImport() {
       if (!user) throw new Error('Not authenticated')
 
       let count = 0
+      let updated = 0
       const errors: string[] = []
       
       for (const product of products) {
         const mainVariant = product.variants[0]
         const mainImage = product.images[0]
+        const externalId = String(product.id)
 
-        const { error: insertError } = await supabase
+        // Check if product already exists (by external_id + store_id)
+        const { data: existing } = await supabase
           .from('products')
-          .insert({
-            user_id: user.id,
-            store_id: selectedStore.id,
-            external_id: String(product.id),
-            title: product.title,
-            description: product.body_html?.replace(/<[^>]*>/g, '') || '',
-            price: parseFloat(mainVariant?.price || '0'),
-            sku: mainVariant?.sku || '',
-            image_url: mainImage?.src || '',
-            status: product.status === 'active' ? 'active' : 'draft',
-            category: product.product_type || '',
-            artist: product.vendor || '',
-            attributes: {
-              shopify_tags: product.tags || '',
-              platform: 'shopify'
-            }
-          })
+          .select('id')
+          .eq('store_id', selectedStore.id)
+          .eq('external_id', externalId)
+          .single()
 
-        if (insertError) {
-          console.error('Insert error for', product.title, insertError)
-          errors.push(`${product.title}: ${insertError.message}`)
-        } else {
-          count++
-          setImported(count)
+        const productData = {
+          user_id: user.id,
+          store_id: selectedStore.id,
+          external_id: externalId,
+          title: product.title,
+          description: product.body_html?.replace(/<[^>]*>/g, '') || '',
+          price: parseFloat(mainVariant?.price || '0'),
+          sku: mainVariant?.sku || '',
+          image_url: mainImage?.src || '',
+          status: product.status === 'active' ? 'active' : 'draft',
+          category: product.product_type || '',
+          artist: product.vendor || '',
+          attributes: {
+            shopify_tags: product.tags || '',
+            platform: 'shopify'
+          }
         }
+
+        let error
+        if (existing) {
+          // Update existing product
+          const { error: updateError } = await supabase
+            .from('products')
+            .update(productData)
+            .eq('id', existing.id)
+          error = updateError
+          if (!updateError) updated++
+        } else {
+          // Insert new product
+          const { error: insertError } = await supabase
+            .from('products')
+            .insert(productData)
+          error = insertError
+          if (!insertError) count++
+        }
+
+        if (error) {
+          console.error('Error for', product.title, error)
+          errors.push(`${product.title}: ${error.message}`)
+        }
+        
+        setImported(count + updated)
       }
 
       if (errors.length > 0) {
