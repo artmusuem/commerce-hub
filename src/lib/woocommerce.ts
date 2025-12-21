@@ -39,6 +39,15 @@ export interface WooCommercePushPayload {
     variation?: boolean
     options: string[]
   }[]
+  // Digital download fields
+  downloadable?: boolean
+  virtual?: boolean
+  downloads?: {
+    name: string
+    file: string
+  }[]
+  download_limit?: number
+  download_expiry?: number
 }
 
 /**
