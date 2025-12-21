@@ -86,21 +86,29 @@ export function transformToWooCommerce(
     sku: product.sku || `CH-${product.id.slice(0, 8)}`,
   }
 
-  // Add image if present and URL is valid for WooCommerce
-  // WooCommerce rejects URLs without proper file extensions (like Smithsonian API URLs)
+  // Add image if present
+  // For URLs without proper extensions (like Smithsonian), use Cloudinary fetch
   if (product.image_url) {
     const url = product.image_url.toLowerCase()
     const hasValidExtension = /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(url) || 
                               url.includes('cdn.shopify.com') ||
                               url.includes('cloudinary.com')
     
-    if (hasValidExtension) {
+    let imageUrl = product.image_url
+    
+    // Use Cloudinary fetch proxy for URLs that WooCommerce can't process directly
+    if (!hasValidExtension && url.includes('ids.si.edu')) {
+      // Cloudinary fetch: proxies any URL and serves with proper headers
+      imageUrl = `https://res.cloudinary.com/dh4qwuvuo/image/fetch/${product.image_url}`
+    }
+    
+    // Only add image if we have a valid URL (original or proxied)
+    if (hasValidExtension || url.includes('ids.si.edu')) {
       payload.images = [{
-        src: product.image_url,
+        src: imageUrl,
         alt: product.title
       }]
     }
-    // Skip image for URLs like ids.si.edu that WooCommerce can't process
   }
 
   // Map category name to WooCommerce category ID
