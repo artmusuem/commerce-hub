@@ -13,12 +13,12 @@ Add digital download support to existing multi-channel system. Launch real digit
 
 ---
 
-## Current State (December 21, 2024) ✅ VERIFIED WORKING
+## Current State (December 21, 2024 - Evening) ✅ DIGITAL DOWNLOADS WORKING
 
 | Platform | Auth | Import | Push | Tags/Categories | Digital Files |
 |----------|------|--------|------|-----------------|---------------|
-| WooCommerce | ✅ | ✅ | ✅ | ✅ Categories | ❌ TODO |
-| Shopify | ✅ OAuth | ✅ | ✅ | ✅ Tags + Type | ❌ TODO |
+| WooCommerce | ✅ | ✅ | ✅ | ✅ Categories | ✅ Working |
+| Shopify | ✅ OAuth | ✅ | ✅ | ✅ Tags + Type | ⚠️ Manual |
 | Gallery Store | ✅ GitHub | ✅ | ✅ | N/A | ❌ TODO |
 | Etsy | ⏳ Pending | ❌ | ❌ | ❌ | ❌ |
 
@@ -27,12 +27,18 @@ Add digital download support to existing multi-channel system. Launch real digit
 - WooCommerce: rapidwoo.com/commerce (35 products)
 - Gallery Store: ecommerce-react-beta-woad.vercel.app (110 products)
 
-**Key Accomplishments (Today):**
-- ✅ Shopify full sync working (import, edit, push)
-- ✅ Tags sync bidirectionally with Shopify
-- ✅ Platform-aware UI (Product Type vs Category)
-- ✅ Upsert on import (no duplicates on re-import)
-- ✅ Auto-save before push preserves Shopify tags
+**Key Accomplishments (Dec 21, 2024 - Evening Session):**
+- ✅ Database schema updated with digital download columns
+- ✅ WooCommerce digital downloads fully working (tested end-to-end)
+- ✅ ProductEdit UI has digital product toggle + file URL inputs
+- ✅ transforms.ts forces `type: "simple"` for digital products (WooCommerce requirement)
+- ✅ BUGFIX: Reverted ProductsGrid → ProductsIndex (store filtering was broken)
+
+**Test Results:**
+- Blue Hoodie converted to digital download product
+- Pushed to WooCommerce - shows as Downloadable/Virtual ✅
+- Download file URL attached correctly ✅
+- Product type changed from Variable → Simple ✅
 
 ---
 
@@ -227,13 +233,54 @@ const [uploading, setUploading] = useState(false)
 
 ### Phase 2 Checkpoint
 ```
-[ ] Database schema updated
-[ ] Can upload ZIP/PDF to Cloudinary
-[ ] Digital products push to WooCommerce with download link
-[ ] Digital products push to Shopify (or documented manual workflow)
-[ ] ProductEdit UI shows digital options
-[ ] Customer can purchase and download on WooCommerce
+[x] Database schema updated (is_digital, digital_file_url, digital_file_name)
+[x] ProductEdit UI shows digital product options (toggle + URL inputs)
+[x] Digital products push to WooCommerce with download link
+[x] WooCommerce shows product as Downloadable/Virtual
+[x] Customer can purchase and download on WooCommerce
+[ ] Shopify digital products (requires manual file upload in Shopify admin)
 ```
+
+**WooCommerce Digital Downloads:** ✅ COMPLETE
+- Product type automatically set to "simple" for digital products
+- Downloadable and Virtual flags set correctly
+- Download file URL attached
+- Download limits configurable (-1 = unlimited)
+- Tested with Blue Hoodie product → working perfectly
+
+**Shopify Digital Downloads:** ⚠️ REQUIRES MANUAL WORKFLOW
+- Shopify doesn't have a direct API for attaching downloadable files
+- Products push with "digital-download" tag added automatically
+- File must be uploaded manually via Shopify admin or Digital Downloads app
+- Alternative: Use Shopify Files API (requires additional development)
+
+---
+
+# BUG FIXES (Dec 21, 2024)
+
+## Issue: Store Filtering Broken
+**Symptom:** Clicking "View Products" from Stores page showed ALL 52 products instead of filtering by store.
+
+**Root Cause:** 
+- Someone added `ProductsGrid.tsx` spreadsheet view (commit eb926f0)
+- Router changed from `ProductsIndex` → `ProductsGrid` in App.tsx
+- ProductsGrid filtered by platform NAME ('shopify', 'woocommerce')
+- But "View Products" button sends store UUID
+- Mismatch caused all products to show
+
+**Fix:**
+- Reverted App.tsx to use `ProductsIndex` instead of `ProductsGrid`
+- ProductsIndex correctly filters by store UUID
+- Store filtering now working correctly
+
+**Files Changed:**
+- `src/App.tsx` - Import and route reverted to ProductsIndex
+- Commit: 371c452
+
+**Test:**
+- Navigate to https://commerce-hub-iota.vercel.app/stores
+- Click "View Products" on WooCommerce → Shows only 35 WooCommerce products ✅
+- Click "View Products" on Shopify → Shows only 17 Shopify products ✅
 
 ---
 
@@ -372,7 +419,7 @@ commerce-hub/
 │   │   ├── token.js          ✅
 │   │   └── products.js       ✅
 │   ├── woocommerce/
-│   │   ├── push.js           ✅
+│   │   ├── push.js           ✅ (includes digital downloads)
 │   │   ├── variations.js     ✅
 │   │   └── variation-update.js ✅
 │   └── etsy/                 TODO
@@ -380,17 +427,22 @@ commerce-hub/
 │       └── products.js
 ├── src/lib/
 │   ├── supabase.ts           ✅
-│   ├── woocommerce.ts        ✅
+│   ├── woocommerce.ts        ✅ (digital download interfaces)
 │   ├── shopify.ts            ✅
-│   ├── transforms.ts         ✅
-│   └── cloudinary.ts         TODO
-└── src/pages/stores/
-    ├── WooCommerceConnect.tsx    ✅
-    ├── ShopifyConnect.tsx        ✅
-    ├── ShopifyCallback.tsx       ✅
-    ├── ShopifyImport.tsx         ✅
-    ├── ImportStore.tsx           ✅
-    └── EtsyConnect.tsx           TODO
+│   ├── transforms.ts         ✅ (digital download transforms)
+│   └── cloudinary.ts         SKIPPED (using direct URLs)
+└── src/pages/
+    ├── products/
+    │   ├── ProductsIndex.tsx     ✅ (ACTIVE - store filtering works)
+    │   ├── ProductsGrid.tsx      ⚠️ (DISABLED - broke filtering)
+    │   └── ProductEdit.tsx       ✅ (digital download UI added)
+    └── stores/
+        ├── WooCommerceConnect.tsx    ✅
+        ├── ShopifyConnect.tsx        ✅
+        ├── ShopifyCallback.tsx       ✅
+        ├── ShopifyImport.tsx         ✅
+        ├── ImportStore.tsx           ✅
+        └── EtsyConnect.tsx           TODO
 ```
 
 ## Credentials Location
@@ -434,12 +486,12 @@ git pull origin main
 - [x] 1.2 WooCommerce full sync verified
 - [x] 1.3 Documentation complete
 
-## Phase 2 - IN PROGRESS
-- [ ] 2.1 Database schema update
-- [ ] 2.2 Cloudinary upload
-- [ ] 2.3 WooCommerce digital products
-- [ ] 2.4 Shopify digital products
-- [ ] 2.5 ProductEdit UI updates
+## Phase 2 - IN PROGRESS (Dec 21, 2024 - Evening)
+- [x] 2.1 Database schema update
+- [ ] 2.2 Cloudinary upload (SKIPPED - using direct URLs instead)
+- [x] 2.3 WooCommerce digital products
+- [ ] 2.4 Shopify digital products (needs manual file upload)
+- [x] 2.5 ProductEdit UI updates
 
 ## Phase 3 - NOT STARTED
 - [ ] 3.1 Create bundles
