@@ -181,10 +181,11 @@ export function ProductEdit() {
     console.log('Starting save...')
 
     try {
-      // Determine attributes format based on what we have
-      // If shopifyTags is set, save as object; otherwise save array
+      // Determine attributes format based on platform
+      // Shopify: save as object with shopify_tags
+      // WooCommerce: save as array of attributes
       let attributesToSave: unknown = attributes
-      if (shopifyTags) {
+      if (productPlatform === 'shopify') {
         attributesToSave = {
           shopify_tags: shopifyTags,
           platform: 'shopify'
