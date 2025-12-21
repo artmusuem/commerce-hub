@@ -99,7 +99,8 @@ export function transformToWooCommerce(
     // Use Cloudinary fetch proxy for URLs that WooCommerce can't process directly
     if (!hasValidExtension && url.includes('ids.si.edu')) {
       // Cloudinary fetch: proxies any URL and serves with proper headers
-      imageUrl = `https://res.cloudinary.com/dh4qwuvuo/image/fetch/${product.image_url}`
+      // URL must be encoded for Cloudinary to fetch it correctly
+      imageUrl = `https://res.cloudinary.com/dh4qwuvuo/image/fetch/${encodeURIComponent(product.image_url)}`
     }
     
     // Only add image if we have a valid URL (original or proxied)
