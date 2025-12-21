@@ -58,6 +58,11 @@ export function ProductEdit() {
   const [editedVariationPrices, setEditedVariationPrices] = useState<Record<number, string>>({})
   const [savingVariationId, setSavingVariationId] = useState<number | null>(null)
 
+  // Digital download state
+  const [isDigital, setIsDigital] = useState(false)
+  const [digitalFileUrl, setDigitalFileUrl] = useState('')
+  const [digitalFileName, setDigitalFileName] = useState('')
+
   // Push to Store state
   const [stores, setStores] = useState<Store[]>([])
   const [selectedPushStore, setSelectedPushStore] = useState('')
@@ -114,6 +119,11 @@ export function ProductEdit() {
       }
       
       setProductType(data.product_type || 'simple')
+      
+      // Load digital download fields
+      setIsDigital(data.is_digital || false)
+      setDigitalFileUrl(data.digital_file_url || '')
+      setDigitalFileName(data.digital_file_name || '')
 
       // Load stores for push functionality
       const { data: storesData } = await supabase
@@ -204,6 +214,10 @@ export function ProductEdit() {
           status,
           sku: sku || null,
           attributes: attributesToSave,
+          // Digital download fields
+          is_digital: isDigital,
+          digital_file_url: digitalFileUrl || null,
+          digital_file_name: digitalFileName || null,
         })
         .eq('id', id)
 
@@ -261,6 +275,10 @@ export function ProductEdit() {
           status,
           sku: sku || null,
           attributes: attributesToSave,
+          // Digital download fields
+          is_digital: isDigital,
+          digital_file_url: digitalFileUrl || null,
+          digital_file_name: digitalFileName || null,
         })
         .eq('id', id)
 
@@ -279,6 +297,10 @@ export function ProductEdit() {
         sku,
         status: status as 'draft' | 'active' | 'archived',
         attributes,  // Include attributes for WooCommerce sync
+        // Digital download fields
+        is_digital: isDigital,
+        digital_file_url: digitalFileUrl,
+        digital_file_name: digitalFileName,
       }
 
       if (store.platform === 'woocommerce') {
@@ -728,6 +750,81 @@ export function ProductEdit() {
             placeholder="https://..."
           />
           {imageUrl && <img src={imageUrl} alt="Preview" className="mt-2 w-32 h-32 object-cover rounded-lg bg-gray-100" />}
+        </div>
+
+        {/* Digital Download Section */}
+        <div className="border-t pt-4 mt-2">
+          <div className="flex items-center gap-4 mb-4">
+            <label className="block text-sm font-medium text-gray-700">Product Type</label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="productDelivery"
+                  checked={!isDigital}
+                  onChange={() => setIsDigital(false)}
+                  className="w-4 h-4 text-blue-600"
+                />
+                <span className="text-sm text-gray-700">Physical Product</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="productDelivery"
+                  checked={isDigital}
+                  onChange={() => setIsDigital(true)}
+                  className="w-4 h-4 text-blue-600"
+                />
+                <span className="text-sm text-gray-700">📥 Digital Download</span>
+              </label>
+            </div>
+          </div>
+
+          {isDigital && (
+            <div className="bg-blue-50 p-4 rounded-lg space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Download File URL *
+                </label>
+                <input
+                  type="url"
+                  value={digitalFileUrl}
+                  onChange={e => setDigitalFileUrl(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="https://your-file-host.com/bundle.zip"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Direct link to your ZIP, PDF, or other downloadable file
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  File Name (shown to customer)
+                </label>
+                <input
+                  type="text"
+                  value={digitalFileName}
+                  onChange={e => setDigitalFileName(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="Vintage-Botanicals-Bundle.zip"
+                />
+              </div>
+              {digitalFileUrl && (
+                <div className="flex items-center gap-2 text-green-700 bg-green-100 px-3 py-2 rounded">
+                  <span>✓</span>
+                  <span className="text-sm">Digital file configured</span>
+                  <a 
+                    href={digitalFileUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-sm underline ml-auto"
+                  >
+                    Test link →
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Attributes Section - Editable */}
