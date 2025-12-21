@@ -116,6 +116,8 @@ export function transformToWooCommerce(
 
   // Handle digital downloads
   if (product.is_digital && product.digital_file_url) {
+    // Digital products must be simple type (not variable)
+    payload.type = 'simple'
     payload.downloadable = true
     payload.virtual = true
     payload.downloads = [{
