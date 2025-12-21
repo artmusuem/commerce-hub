@@ -239,6 +239,15 @@ export function ProductEdit() {
     setPushResult(null)
 
     try {
+      // Determine attributes format based on platform
+      let attributesToSave: unknown = attributes
+      if (productPlatform === 'shopify' || store.platform === 'shopify') {
+        attributesToSave = {
+          shopify_tags: shopifyTags,
+          platform: 'shopify'
+        }
+      }
+
       // Auto-save to Supabase first
       const { error: saveError } = await supabase
         .from('products')
@@ -251,7 +260,7 @@ export function ProductEdit() {
           image_url: imageUrl || null,
           status,
           sku: sku || null,
-          attributes,
+          attributes: attributesToSave,
         })
         .eq('id', id)
 
