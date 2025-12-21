@@ -320,6 +320,13 @@ export function ProductEdit() {
         }
 
         const wooProduct = transformToWooCommerce(product, categoryMap)
+        
+        // Only use external_id for updates if product came from WooCommerce
+        // (prevents using Shopify ID to try updating WooCommerce)
+        const wooExternalId = productPlatform === 'woocommerce' && externalId 
+          ? parseInt(externalId) 
+          : undefined
+        
         const result = await pushProductToWooCommerce(
           {
             siteUrl: store.store_url || '',
@@ -327,7 +334,7 @@ export function ProductEdit() {
             consumerSecret: credentials.consumer_secret
           },
           wooProduct,
-          externalId ? parseInt(externalId) : undefined
+          wooExternalId
         )
 
         setPushResult({
@@ -345,8 +352,9 @@ export function ProductEdit() {
         const shopDomain = store.store_url?.replace(/^https?:\/\//, '').replace(/\/$/, '') || ''
         const shopifyProduct = transformToShopify(product, store.store_name || 'Commerce Hub', shopifyTags)
         
-        // Use external_id to determine update vs create
-        const isUpdate = externalId && !isNaN(parseInt(externalId))
+        // Only use external_id for updates if product came from Shopify
+        // (prevents using WooCommerce ID to try updating Shopify)
+        const isUpdate = productPlatform === 'shopify' && externalId && !isNaN(parseInt(externalId))
         
         const response = await fetch('/api/shopify/products', {
           method: 'POST',
@@ -368,8 +376,9 @@ export function ProductEdit() {
         const result = await response.json()
         const productData = result.product
         
-        // Save external_id if this was a create
-        if (!isUpdate && productData?.id) {
+        // Only save external_id if this was a create AND product is from Shopify
+        // (don't overwrite Gallery Store or WooCommerce external_id)
+        if (!isUpdate && productData?.id && productPlatform === 'shopify') {
           await supabase
             .from('products')
             .update({ external_id: String(productData.id) })
