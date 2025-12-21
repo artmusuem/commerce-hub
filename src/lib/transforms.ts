@@ -26,6 +26,12 @@ export interface CommerceHubProduct {
     variation?: boolean
     options: string[]
   }[]
+  // Digital download fields
+  is_digital?: boolean
+  digital_file_url?: string | null
+  digital_file_name?: string | null
+  download_limit?: number
+  download_expiry?: number
 }
 
 /**
@@ -42,7 +48,7 @@ export interface ShopifyPushPayload {
     price: string
     sku?: string
     inventory_quantity?: number
-    inventory_management?: string
+    inventory_management?: string | null
   }[]
   images?: { src: string; alt?: string }[]
 }
@@ -108,6 +114,18 @@ export function transformToWooCommerce(
     }))
   }
 
+  // Handle digital downloads
+  if (product.is_digital && product.digital_file_url) {
+    payload.downloadable = true
+    payload.virtual = true
+    payload.downloads = [{
+      name: product.digital_file_name || 'Download',
+      file: product.digital_file_url
+    }]
+    payload.download_limit = product.download_limit ?? -1
+    payload.download_expiry = product.download_expiry ?? -1
+  }
+
   return payload
 }
 
@@ -134,19 +152,31 @@ export function transformToShopify(
   if (product.artist) {
     bodyHtml += `<p><strong>Artist:</strong> ${escapeHtml(product.artist)}</p>`
   }
+  
+  // Add digital download notice if applicable
+  if (product.is_digital) {
+    bodyHtml += `<p><strong>📥 Digital Download:</strong> You will receive a download link after purchase.</p>`
+  }
+
+  // Build tags - include 'digital-download' tag for digital products
+  let tags = shopifyTags || ''
+  if (product.is_digital && !tags.toLowerCase().includes('digital')) {
+    tags = tags ? `${tags}, digital-download` : 'digital-download'
+  }
 
   const payload: ShopifyPushPayload = {
     title: product.title,
     body_html: bodyHtml,
     vendor: vendorName,
     product_type: product.category || 'Art Print',
-    tags: shopifyTags || '',
+    tags,
     status: statusMap[product.status] || 'draft',
     variants: [{
       price: product.price.toFixed(2),
       sku: product.sku || `CH-${product.id.slice(0, 8)}`,
-      inventory_quantity: 100,
-      inventory_management: 'shopify'
+      // Digital products don't need inventory tracking
+      inventory_quantity: product.is_digital ? 999 : 100,
+      inventory_management: product.is_digital ? null : 'shopify'
     }]
   }
 
