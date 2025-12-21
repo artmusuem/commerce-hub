@@ -86,12 +86,21 @@ export function transformToWooCommerce(
     sku: product.sku || `CH-${product.id.slice(0, 8)}`,
   }
 
-  // Add image if present
+  // Add image if present and URL is valid for WooCommerce
+  // WooCommerce rejects URLs without proper file extensions (like Smithsonian API URLs)
   if (product.image_url) {
-    payload.images = [{
-      src: product.image_url,
-      alt: product.title
-    }]
+    const url = product.image_url.toLowerCase()
+    const hasValidExtension = /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(url) || 
+                              url.includes('cdn.shopify.com') ||
+                              url.includes('cloudinary.com')
+    
+    if (hasValidExtension) {
+      payload.images = [{
+        src: product.image_url,
+        alt: product.title
+      }]
+    }
+    // Skip image for URLs like ids.si.edu that WooCommerce can't process
   }
 
   // Map category name to WooCommerce category ID
