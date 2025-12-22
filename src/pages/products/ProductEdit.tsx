@@ -77,6 +77,8 @@ export function ProductEdit() {
 
   // Shopify variants (from JSONB column)
   const [shopifyVariants, setShopifyVariants] = useState<ShopifyVariant[]>([])
+  const [editedShopifyVariants, setEditedShopifyVariants] = useState<Record<number, Partial<ShopifyVariant>>>({})
+  const [savingShopifyVariant, setSavingShopifyVariant] = useState(false)
 
   // Digital download state
   const [isDigital, setIsDigital] = useState(false)
@@ -605,6 +607,70 @@ export function ProductEdit() {
     }
   }
 
+  // Update a Shopify variant field in local state
+  // Update a Shopify variant field in local state
+  function updateShopifyVariantField(variantId: number, field: keyof ShopifyVariant, value: string | number | null) {
+    setEditedShopifyVariants(prev => ({
+      ...prev,
+      [variantId]: {
+        ...prev[variantId],
+        [field]: value
+      }
+    }))
+  }
+
+  // Get the current value for a Shopify variant field (edited or original)
+  function getShopifyVariantValue(variant: ShopifyVariant, field: keyof ShopifyVariant) {
+    const edited = editedShopifyVariants[variant.id]
+    if (edited && edited[field] !== undefined) {
+      return edited[field]
+    }
+    return variant[field]
+  }
+
+  // Check if any Shopify variant has been edited
+  function hasShopifyVariantChanges(): boolean {
+    return Object.keys(editedShopifyVariants).length > 0
+  }
+
+  // Save all Shopify variant changes to database
+  async function handleSaveShopifyVariants() {
+    if (!id || !hasShopifyVariantChanges()) return
+    
+    setSavingShopifyVariant(true)
+    try {
+      // Merge edits into variants array
+      const updatedVariants = shopifyVariants.map(variant => {
+        const edits = editedShopifyVariants[variant.id]
+        if (edits) {
+          return { ...variant, ...edits }
+        }
+        return variant
+      })
+      
+      // Save to Supabase
+      const { error: updateError } = await supabase
+        .from('products')
+        .update({ variants: updatedVariants })
+        .eq('id', id)
+      
+      if (updateError) throw updateError
+      
+      // Update local state
+      setShopifyVariants(updatedVariants)
+      setEditedShopifyVariants({})
+      
+      // Show success briefly
+      setSaveSuccess(true)
+      setTimeout(() => setSaveSuccess(false), 2000)
+    } catch (err) {
+      console.error('Failed to save Shopify variants:', err)
+      alert('Failed to save variants: ' + (err instanceof Error ? err.message : 'Unknown error'))
+    } finally {
+      setSavingShopifyVariant(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -1003,12 +1069,24 @@ export function ProductEdit() {
         {/* Shopify Variants Section */}
         {productType === 'variable' && productPlatform === 'shopify' && shopifyVariants.length > 0 && (
           <div className="border-t pt-4 mt-2">
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Product Variants
-              <span className="ml-2 text-xs font-normal text-gray-500">
-                (from Shopify - {shopifyVariants.length} variants)
-              </span>
-            </label>
+            <div className="flex items-center justify-between mb-3">
+              <label className="block text-sm font-medium text-gray-700">
+                Product Variants
+                <span className="ml-2 text-xs font-normal text-gray-500">
+                  (from Shopify - {shopifyVariants.length} variants)
+                </span>
+              </label>
+              {hasShopifyVariantChanges() && (
+                <button
+                  type="button"
+                  onClick={handleSaveShopifyVariants}
+                  disabled={savingShopifyVariant}
+                  className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {savingShopifyVariant ? 'Saving...' : 'Save Variants'}
+                </button>
+              )}
+            </div>
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead>
@@ -1021,8 +1099,10 @@ export function ProductEdit() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {shopifyVariants.map((variant) => (
-                    <tr key={variant.id} className="hover:bg-gray-50">
+                  {shopifyVariants.map((variant) => {
+                    const hasEdits = editedShopifyVariants[variant.id] !== undefined
+                    return (
+                    <tr key={variant.id} className={`hover:bg-gray-50 ${hasEdits ? 'bg-blue-50' : ''}`}>
                       <td className="px-3 py-2">
                         <div className="font-medium">{variant.title}</div>
                         {(variant.option1 || variant.option2 || variant.option3) && (
@@ -1045,33 +1125,61 @@ export function ProductEdit() {
                           </div>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-gray-600 font-mono text-xs">
-                        {variant.sku || '-'}
-                      </td>
-                      <td className="px-3 py-2 font-medium">
-                        ${variant.price}
-                      </td>
-                      <td className="px-3 py-2 text-gray-500">
-                        {variant.compare_at_price ? `$${variant.compare_at_price}` : '-'}
+                      <td className="px-3 py-2">
+                        <input
+                          type="text"
+                          value={getShopifyVariantValue(variant, 'sku') as string}
+                          onChange={(e) => updateShopifyVariantField(variant.id, 'sku', e.target.value)}
+                          placeholder="Enter SKU"
+                          className={`w-24 px-2 py-1 text-xs font-mono border rounded focus:ring-1 focus:ring-blue-500 outline-none ${
+                            hasEdits ? 'border-blue-400' : 'border-gray-300'
+                          }`}
+                        />
                       </td>
                       <td className="px-3 py-2">
-                        <span className={`px-2 py-0.5 rounded text-xs ${
-                          variant.inventory_quantity > 10 
-                            ? 'bg-green-100 text-green-700'
-                            : variant.inventory_quantity > 0
-                            ? 'bg-yellow-100 text-yellow-700'
-                            : 'bg-red-100 text-red-700'
-                        }`}>
-                          {variant.inventory_quantity} in stock
-                        </span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-gray-400">$</span>
+                          <input
+                            type="text"
+                            value={getShopifyVariantValue(variant, 'price') as string}
+                            onChange={(e) => updateShopifyVariantField(variant.id, 'price', e.target.value)}
+                            className={`w-20 px-2 py-1 text-sm border rounded focus:ring-1 focus:ring-blue-500 outline-none ${
+                              hasEdits ? 'border-blue-400' : 'border-gray-300'
+                            }`}
+                          />
+                        </div>
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-1">
+                          <span className="text-gray-400">$</span>
+                          <input
+                            type="text"
+                            value={(getShopifyVariantValue(variant, 'compare_at_price') as string) || ''}
+                            onChange={(e) => updateShopifyVariantField(variant.id, 'compare_at_price', e.target.value || null)}
+                            placeholder="-"
+                            className={`w-20 px-2 py-1 text-sm border rounded focus:ring-1 focus:ring-blue-500 outline-none ${
+                              hasEdits ? 'border-blue-400' : 'border-gray-300'
+                            }`}
+                          />
+                        </div>
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="number"
+                          value={getShopifyVariantValue(variant, 'inventory_quantity') as number}
+                          onChange={(e) => updateShopifyVariantField(variant.id, 'inventory_quantity', parseInt(e.target.value) || 0)}
+                          className={`w-16 px-2 py-1 text-sm border rounded focus:ring-1 focus:ring-blue-500 outline-none ${
+                            hasEdits ? 'border-blue-400' : 'border-gray-300'
+                          }`}
+                        />
                       </td>
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
               </table>
             </div>
             <p className="mt-2 text-xs text-gray-500">
-              Variant data synced from Shopify. Edit variants in your Shopify admin.
+              Edit variant data inline. Click "Save Variants" to update. Changes sync to Commerce Hub only (not Shopify).
             </p>
           </div>
         )}
