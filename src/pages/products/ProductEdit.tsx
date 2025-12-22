@@ -710,636 +710,591 @@ export function ProductEdit() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-white p-6 rounded-xl shadow-sm space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-6">
         {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm">{error}</div>}
         {saveSuccess && <div className="bg-green-50 text-green-600 p-3 rounded-lg text-sm">✓ Changes saved</div>}
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
-          <input
-            type="text"
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            required
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-          />
-        </div>
+        {/* Two-Column Layout - Shopify Style */}
+        <div className="flex gap-6">
+          
+          {/* LEFT COLUMN - Main Content */}
+          <div className="flex-1 space-y-6">
+            
+            {/* Title & Description Card */}
+            <div className="bg-white p-6 rounded-xl shadow-sm space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={e => setTitle(e.target.value)}
+                  required
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-          <textarea
-            value={description}
-            onChange={e => setDescription(e.target.value)}
-            rows={3}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-          />
-        </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea
+                  value={description}
+                  onChange={e => setDescription(e.target.value)}
+                  rows={4}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="Describe your product..."
+                />
+              </div>
+            </div>
 
-        <div className="grid grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Price *</label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              value={price}
-              onChange={e => setPrice(e.target.value)}
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-            />
+            {/* Media Card */}
+            <div className="bg-white p-6 rounded-xl shadow-sm">
+              <label className="block text-sm font-medium text-gray-700 mb-3">Media</label>
+              
+              {/* Main Image */}
+              <div className="mb-4">
+                <input
+                  type="url"
+                  value={imageUrl}
+                  onChange={e => setImageUrl(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                  placeholder="https://example.com/image.jpg"
+                />
+              </div>
+              
+              {/* Image Preview Gallery */}
+              <div className="flex flex-wrap gap-3">
+                {imageUrl && (
+                  <div className="relative group">
+                    <img src={imageUrl} alt="Primary" className="w-24 h-24 object-cover rounded-lg border-2 border-blue-500" />
+                    <span className="absolute top-1 left-1 bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded">Primary</span>
+                  </div>
+                )}
+                {productPlatform === 'shopify' && shopifyImages.length > 1 && shopifyImages.slice(1).map((img, idx) => (
+                  <div key={img.id} className="relative group">
+                    <img src={img.src} alt={img.alt || `Image ${idx + 2}`} className="w-24 h-24 object-cover rounded-lg border" />
+                  </div>
+                ))}
+                {/* Add image placeholder */}
+                <div className="w-24 h-24 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center text-gray-400 hover:border-gray-400 cursor-pointer">
+                  <span className="text-2xl">+</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Pricing Card */}
+            <div className="bg-white p-6 rounded-xl shadow-sm">
+              <label className="block text-sm font-medium text-gray-700 mb-3">Pricing</label>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Price *</label>
+                  <div className="flex items-center">
+                    <span className="px-3 py-2 bg-gray-100 border border-r-0 border-gray-300 rounded-l-lg text-gray-500">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={price}
+                      onChange={e => setPrice(e.target.value)}
+                      required
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Compare at price</label>
+                  <div className="flex items-center">
+                    <span className="px-3 py-2 bg-gray-100 border border-r-0 border-gray-300 rounded-l-lg text-gray-500">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Inventory Card */}
+            <div className="bg-white p-6 rounded-xl shadow-sm">
+              <div className="flex justify-between items-center mb-4">
+                <label className="block text-sm font-medium text-gray-700">Inventory</label>
+                <label className="flex items-center gap-2 text-sm">
+                  <span className="text-gray-500">Track quantity</span>
+                  <div className="relative">
+                    <input type="checkbox" className="sr-only peer" defaultChecked />
+                    <div className="w-10 h-5 bg-gray-200 rounded-full peer peer-checked:bg-blue-600 transition-colors"></div>
+                    <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-5"></div>
+                  </div>
+                </label>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">SKU (Stock Keeping Unit)</label>
+                  <input
+                    type="text"
+                    value={sku}
+                    onChange={e => setSku(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    placeholder="PROD-001"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Barcode (ISBN, UPC, etc.)</label>
+                  <input
+                    type="text"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    placeholder=""
+                  />
+                </div>
+              </div>
+
+              {/* Shopify variants with inventory */}
+              {productPlatform === 'shopify' && shopifyVariants.length > 1 && (
+                <div className="mt-4 pt-4 border-t">
+                  <div className="text-xs font-medium text-gray-500 uppercase mb-2">Variant Inventory</div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-xs text-gray-500 border-b">
+                          <th className="pb-2">Variant</th>
+                          <th className="pb-2">SKU</th>
+                          <th className="pb-2 text-right">Available</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {shopifyVariants.map(variant => (
+                          <tr key={variant.id} className="border-b last:border-0">
+                            <td className="py-2 font-medium">{variant.title}</td>
+                            <td className="py-2 text-gray-500">{variant.sku || '—'}</td>
+                            <td className="py-2 text-right">
+                              <span className={`px-2 py-0.5 rounded text-xs ${
+                                variant.inventory_quantity > 10 ? 'bg-green-100 text-green-700' :
+                                variant.inventory_quantity > 0 ? 'bg-yellow-100 text-yellow-700' :
+                                'bg-red-100 text-red-700'
+                              }`}>
+                                {variant.inventory_quantity ?? 0}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Digital Download Card */}
+            <div className="bg-white p-6 rounded-xl shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <label className="block text-sm font-medium text-gray-700">Shipping</label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <span className="text-gray-500">Physical product</span>
+                  <div className="relative">
+                    <input 
+                      type="checkbox" 
+                      className="sr-only peer" 
+                      checked={!isDigital}
+                      onChange={() => setIsDigital(!isDigital)}
+                    />
+                    <div className="w-10 h-5 bg-gray-200 rounded-full peer peer-checked:bg-blue-600 transition-colors"></div>
+                    <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-5"></div>
+                  </div>
+                </label>
+              </div>
+              
+              {isDigital && (
+                <div className="bg-blue-50 p-4 rounded-lg space-y-3">
+                  <div className="flex items-center gap-2 text-blue-700 text-sm font-medium">
+                    <span>📥</span> Digital Download Product
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Download URL</label>
+                    <input
+                      type="url"
+                      value={digitalFileUrl}
+                      onChange={e => setDigitalFileUrl(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      placeholder="https://..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">File Name</label>
+                    <input
+                      type="text"
+                      value={digitalFileName}
+                      onChange={e => setDigitalFileName(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      placeholder="product-file.zip"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Variants Card - Shopify Options */}
+            {productPlatform === 'shopify' && shopifyOptions.length > 0 && (
+              <div className="bg-white p-6 rounded-xl shadow-sm">
+                <label className="block text-sm font-medium text-gray-700 mb-3">Variants</label>
+                <div className="space-y-4">
+                  {shopifyOptions.map(option => (
+                    <div key={option.id}>
+                      <div className="text-xs font-medium text-gray-500 uppercase mb-2">{option.name}</div>
+                      <div className="flex flex-wrap gap-2">
+                        {option.values.map((value, idx) => (
+                          <span key={idx} className="px-3 py-1.5 bg-gray-100 rounded-lg text-sm">
+                            {value}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Variant Pricing Table */}
+                {shopifyVariants.length > 1 && (
+                  <div className="mt-4 pt-4 border-t">
+                    <div className="text-xs font-medium text-gray-500 uppercase mb-2">Variant Pricing</div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-xs text-gray-500 border-b">
+                            <th className="pb-2">Variant</th>
+                            <th className="pb-2">Price</th>
+                            <th className="pb-2"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {shopifyVariants.map(variant => (
+                            <tr key={variant.id} className="border-b last:border-0">
+                              <td className="py-2 font-medium">{variant.title}</td>
+                              <td className="py-2">
+                                <div className="flex items-center gap-1">
+                                  <span className="text-gray-400">$</span>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    value={editedShopifyPrices[variant.id] ?? variant.price}
+                                    onChange={e => setEditedShopifyPrices(prev => ({
+                                      ...prev,
+                                      [variant.id]: e.target.value
+                                    }))}
+                                    className="w-20 px-2 py-1 border rounded text-sm"
+                                  />
+                                </div>
+                              </td>
+                              <td className="py-2">
+                                {editedShopifyPrices[variant.id] !== undefined && 
+                                 editedShopifyPrices[variant.id] !== variant.price && (
+                                  <button
+                                    type="button"
+                                    onClick={() => console.log('Save variant', variant.id)}
+                                    className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
+                                  >
+                                    Save
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* WooCommerce Attributes Card */}
+            {productPlatform === 'woocommerce' && attributes.length > 0 && (
+              <div className="bg-white p-6 rounded-xl shadow-sm">
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Attributes
+                  {productType === 'variable' && (
+                    <span className="ml-2 px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded">Variable</span>
+                  )}
+                </label>
+                <div className="space-y-3">
+                  {attributes.map((attr, attrIndex) => (
+                    <div key={attr.id || attrIndex} className="bg-gray-50 p-3 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium text-gray-900">{attr.name}</span>
+                        <div className="flex gap-2 text-xs">
+                          <span className={`px-2 py-0.5 rounded ${attr.visible ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'}`}>
+                            {attr.visible ? 'Visible' : 'Hidden'}
+                          </span>
+                          {attr.variation && (
+                            <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-700">
+                              For variations
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {attr.options.map((option, optIndex) => (
+                          <span key={optIndex} className="px-2 py-1 bg-white border rounded text-sm">
+                            {option}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* WooCommerce Variations */}
+            {productPlatform === 'woocommerce' && productType === 'variable' && variations.length > 0 && (
+              <div className="bg-white p-6 rounded-xl shadow-sm">
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Variation Prices
+                  <span className="ml-2 text-xs font-normal text-gray-500">
+                    ({variations.length} variations)
+                  </span>
+                </label>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs text-gray-500 border-b">
+                        <th className="pb-2">Variation</th>
+                        <th className="pb-2">SKU</th>
+                        <th className="pb-2">Price</th>
+                        <th className="pb-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {variations.map(variation => (
+                        <tr key={variation.id} className="border-b last:border-0">
+                          <td className="py-2">
+                            {variation.attributes.map(a => a.option).join(' / ') || `#${variation.id}`}
+                          </td>
+                          <td className="py-2 text-gray-500">{variation.sku || '—'}</td>
+                          <td className="py-2">
+                            <div className="flex items-center gap-1">
+                              <span className="text-gray-400">$</span>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={editedVariationPrices[variation.id] ?? variation.regular_price}
+                                onChange={e => setEditedVariationPrices(prev => ({
+                                  ...prev,
+                                  [variation.id]: e.target.value
+                                }))}
+                                className="w-20 px-2 py-1 border rounded text-sm"
+                              />
+                            </div>
+                          </td>
+                          <td className="py-2">
+                            {editedVariationPrices[variation.id] !== undefined && (
+                              <button
+                                type="button"
+                                onClick={() => handleSaveVariationPrice(variation.id)}
+                                disabled={savingVariationId === variation.id}
+                                className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 disabled:opacity-50"
+                              >
+                                {savingVariationId === variation.id ? '...' : 'Save'}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* SEO Preview Card */}
+            {productPlatform === 'shopify' && urlHandle && (
+              <div className="bg-white p-6 rounded-xl shadow-sm">
+                <label className="block text-sm font-medium text-gray-700 mb-3">Search engine listing</label>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <div className="text-sm text-gray-500 mb-1">
+                    dev-store.myshopify.com › products › {urlHandle}
+                  </div>
+                  <div className="text-blue-600 text-lg font-medium hover:underline cursor-pointer">
+                    {title}
+                  </div>
+                  <div className="text-sm text-gray-600 line-clamp-2 mt-1">
+                    {description?.slice(0, 160) || 'No description...'}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">SKU</label>
-            <input
-              type="text"
-              value={sku}
-              onChange={e => setSku(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-              placeholder="PROD-001"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <select
-              value={status}
-              onChange={e => setStatus(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-            >
-              <option value="draft">Draft</option>
-              <option value="active">Active</option>
-              <option value="archived">Archived</option>
-            </select>
-          </div>
-        </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Artist</label>
-          <input
-            type="text"
-            value={artist}
-            onChange={e => setArtist(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-          />
-        </div>
-
-        {/* Category - Platform-aware */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            {productPlatform === 'shopify' ? 'Product Type' : 'Category'}
-          </label>
-          {productPlatform === 'woocommerce' && availableCategories.length > 0 ? (
-            <>
+          {/* RIGHT COLUMN - Sidebar */}
+          <div className="w-80 space-y-6">
+            
+            {/* Status Card */}
+            <div className="bg-white p-6 rounded-xl shadow-sm">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
               <select
-                value={category}
-                onChange={e => setCategory(e.target.value)}
+                value={status}
+                onChange={e => setStatus(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
               >
-                <option value="">Select category...</option>
-                {availableCategories.map(cat => (
-                  <option key={cat.id} value={cat.name}>
-                    {cat.name}
+                <option value="active">Active</option>
+                <option value="draft">Draft</option>
+                <option value="archived">Archived</option>
+              </select>
+            </div>
+
+            {/* Publishing Card */}
+            {productPlatform === 'shopify' && (
+              <div className="bg-white p-6 rounded-xl shadow-sm">
+                <label className="block text-sm font-medium text-gray-700 mb-3">Publishing</label>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                    <input type="checkbox" defaultChecked className="w-4 h-4 text-blue-600 rounded" />
+                    <span className="text-sm">Online Store</span>
+                  </label>
+                  <label className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                    <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" />
+                    <span className="text-sm">Point of Sale</span>
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {/* Product Organization Card */}
+            <div className="bg-white p-6 rounded-xl shadow-sm space-y-4">
+              <label className="block text-sm font-medium text-gray-700">Product organization</label>
+              
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">
+                  {productPlatform === 'shopify' ? 'Product type' : 'Category'}
+                </label>
+                {productPlatform === 'woocommerce' && availableCategories.length > 0 ? (
+                  <select
+                    value={category}
+                    onChange={e => setCategory(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  >
+                    <option value="">Select category...</option>
+                    {availableCategories.map(cat => (
+                      <option key={cat.id} value={cat.name}>{cat.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={category}
+                    onChange={e => setCategory(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    placeholder="e.g., Art Print"
+                  />
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Vendor</label>
+                <input
+                  type="text"
+                  value={productPlatform === 'shopify' ? vendor : artist}
+                  onChange={e => productPlatform === 'shopify' ? setVendor(e.target.value) : setArtist(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  placeholder={productPlatform === 'shopify' ? 'Vendor name' : 'Artist name'}
+                />
+              </div>
+
+              {productPlatform === 'shopify' && (
+                <>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Collections</label>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      placeholder="Search collections..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Tags</label>
+                    <input
+                      type="text"
+                      value={shopifyTags}
+                      onChange={e => setShopifyTags(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      placeholder="tag1, tag2, tag3"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Sync Status Card */}
+            {productPlatform === 'shopify' && (
+              <div className="bg-white p-6 rounded-xl shadow-sm">
+                <label className="block text-sm font-medium text-gray-700 mb-3">Sync Status</label>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`w-2 h-2 rounded-full ${
+                    syncStatus === 'synced' ? 'bg-green-500' :
+                    syncStatus === 'modified' ? 'bg-yellow-500' :
+                    'bg-gray-400'
+                  }`}></span>
+                  <span className="text-sm font-medium">
+                    {syncStatus === 'synced' ? 'Synced with Shopify' :
+                     syncStatus === 'modified' ? 'Modified locally' :
+                     syncStatus}
+                  </span>
+                </div>
+                {lastSyncedAt && (
+                  <div className="text-xs text-gray-500">
+                    Last synced: {new Date(lastSyncedAt).toLocaleString()}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Push to Store Card */}
+            <div className="bg-white p-6 rounded-xl shadow-sm">
+              <label className="block text-sm font-medium text-gray-700 mb-3">Push to Store</label>
+              <select
+                value={selectedPushStore}
+                onChange={e => setSelectedPushStore(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-3"
+              >
+                <option value="">Select store...</option>
+                {stores.filter(s => 
+                  s.platform === 'woocommerce' || s.platform === 'shopify' || s.platform === 'gallery-store'
+                ).map(store => (
+                  <option key={store.id} value={store.id}>
+                    {store.store_name || store.store_url} ({store.platform})
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-gray-500 mt-1">
-                Categories from WooCommerce ({availableCategories.length} available)
-              </p>
-            </>
-          ) : (
-            <>
-              <input
-                type="text"
-                value={category}
-                onChange={e => setCategory(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                placeholder={productPlatform === 'shopify' ? 'e.g., snowboard, t-shirt' : 'Enter category'}
-              />
-              {productPlatform === 'shopify' && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Shopify product type (used for filtering)
-                </p>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* Shopify Tags - show for Shopify products */}
-        {(productPlatform === 'shopify' || shopifyTags || stores.some(s => s.platform === 'shopify' && s.id === selectedPushStore)) && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Shopify Tags
-            </label>
-            <input
-              type="text"
-              value={shopifyTags}
-              onChange={e => setShopifyTags(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-              placeholder="tag1, tag2, tag3"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Comma-separated tags for Shopify filtering
-            </p>
-          </div>
-        )}
-
-        {/* Vendor field - show for Shopify products */}
-        {productPlatform === 'shopify' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Vendor
-            </label>
-            <input
-              type="text"
-              value={vendor}
-              onChange={e => setVendor(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-              placeholder="Vendor name"
-            />
-          </div>
-        )}
-
-        {/* Shopify Options (Size, Color, etc.) - read-only display */}
-        {productPlatform === 'shopify' && shopifyOptions.length > 0 && (
-          <div className="border-t pt-4 mt-2">
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Product Options
-            </label>
-            <div className="flex flex-wrap gap-4">
-              {shopifyOptions.map(option => (
-                <div key={option.id} className="bg-gray-50 p-3 rounded-lg">
-                  <div className="text-sm font-medium text-gray-700 mb-2">{option.name}</div>
-                  <div className="flex flex-wrap gap-1">
-                    {option.values.map((value, idx) => (
-                      <span key={idx} className="px-2 py-1 bg-white border rounded text-sm">
-                        {value}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Shopify Variants - editable prices */}
-        {productPlatform === 'shopify' && shopifyVariants.length > 1 && (
-          <div className="border-t pt-4 mt-2">
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Variants
-              <span className="ml-2 text-xs font-normal text-purple-600 bg-purple-50 px-2 py-0.5 rounded">
-                {shopifyVariants.length} variants
-              </span>
-            </label>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-gray-50">
-                    <th className="text-left py-2 px-3 font-medium">Variant</th>
-                    <th className="text-left py-2 px-3 font-medium">SKU</th>
-                    <th className="text-left py-2 px-3 font-medium">Price</th>
-                    <th className="text-left py-2 px-3 font-medium">Inventory</th>
-                    <th className="text-left py-2 px-3 font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {shopifyVariants.map(variant => (
-                    <tr key={variant.id} className="border-b hover:bg-gray-50">
-                      <td className="py-2 px-3">
-                        <span className="font-medium">{variant.title}</span>
-                      </td>
-                      <td className="py-2 px-3 text-gray-500">
-                        {variant.sku || '—'}
-                      </td>
-                      <td className="py-2 px-3">
-                        <div className="flex items-center gap-2">
-                          <span className="text-gray-500">$</span>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={editedShopifyPrices[variant.id] ?? variant.price}
-                            onChange={e => setEditedShopifyPrices(prev => ({
-                              ...prev,
-                              [variant.id]: e.target.value
-                            }))}
-                            className="w-24 px-2 py-1 border rounded text-sm"
-                          />
-                        </div>
-                      </td>
-                      <td className="py-2 px-3">
-                        <span className={`px-2 py-1 rounded text-xs ${
-                          variant.inventory_quantity > 10 
-                            ? 'bg-green-100 text-green-700'
-                            : variant.inventory_quantity > 0
-                              ? 'bg-yellow-100 text-yellow-700'
-                              : 'bg-red-100 text-red-700'
-                        }`}>
-                          {variant.inventory_quantity ?? 0}
-                        </span>
-                      </td>
-                      <td className="py-2 px-3">
-                        {editedShopifyPrices[variant.id] !== undefined && 
-                         editedShopifyPrices[variant.id] !== variant.price && (
-                          <button
-                            onClick={() => {
-                              // TODO: Save variant price to Shopify
-                              console.log('Save variant', variant.id, editedShopifyPrices[variant.id])
-                            }}
-                            disabled={savingShopifyVariantId === variant.id}
-                            className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 disabled:opacity-50"
-                          >
-                            {savingShopifyVariantId === variant.id ? 'Saving...' : 'Save'}
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* Shopify Images Gallery */}
-        {productPlatform === 'shopify' && shopifyImages.length > 1 && (
-          <div className="border-t pt-4 mt-2">
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Images
-              <span className="ml-2 text-xs font-normal text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
-                {shopifyImages.length} images
-              </span>
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {shopifyImages.sort((a, b) => a.position - b.position).map((img, idx) => (
-                <div key={img.id} className="relative group">
-                  <img
-                    src={img.src}
-                    alt={img.alt || `Image ${idx + 1}`}
-                    className="w-20 h-20 object-cover rounded border"
-                  />
-                  {idx === 0 && (
-                    <span className="absolute top-1 left-1 bg-blue-600 text-white text-xs px-1 rounded">
-                      Primary
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Sync Status - show for Shopify products */}
-        {productPlatform === 'shopify' && (
-          <div className="border-t pt-4 mt-2">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Sync Status
-            </label>
-            <div className="flex items-center gap-4">
-              <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                syncStatus === 'synced' ? 'bg-green-100 text-green-700' :
-                syncStatus === 'modified' ? 'bg-yellow-100 text-yellow-700' :
-                syncStatus === 'error' ? 'bg-red-100 text-red-700' :
-                'bg-gray-100 text-gray-700'
-              }`}>
-                {syncStatus === 'synced' ? '✓ Synced' :
-                 syncStatus === 'modified' ? '⚠ Modified Locally' :
-                 syncStatus === 'error' ? '✗ Error' :
-                 syncStatus}
-              </span>
-              {lastSyncedAt && (
-                <span className="text-sm text-gray-500">
-                  Last synced: {new Date(lastSyncedAt).toLocaleString()}
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Image URL</label>
-          <input
-            type="url"
-            value={imageUrl}
-            onChange={e => setImageUrl(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-            placeholder="https://..."
-          />
-          {imageUrl && <img src={imageUrl} alt="Preview" className="mt-2 w-32 h-32 object-cover rounded-lg bg-gray-100" />}
-        </div>
-
-        {/* Digital Download Section */}
-        <div className="border-t pt-4 mt-2">
-          <div className="flex items-center gap-4 mb-4">
-            <label className="block text-sm font-medium text-gray-700">Product Type</label>
-            <div className="flex gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="productDelivery"
-                  checked={!isDigital}
-                  onChange={() => setIsDigital(false)}
-                  className="w-4 h-4 text-blue-600"
-                />
-                <span className="text-sm text-gray-700">Physical Product</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="productDelivery"
-                  checked={isDigital}
-                  onChange={() => setIsDigital(true)}
-                  className="w-4 h-4 text-blue-600"
-                />
-                <span className="text-sm text-gray-700">📥 Digital Download</span>
-              </label>
-            </div>
-          </div>
-
-          {isDigital && (
-            <div className="bg-blue-50 p-4 rounded-lg space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Download File URL *
-                </label>
-                <input
-                  type="url"
-                  value={digitalFileUrl}
-                  onChange={e => setDigitalFileUrl(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                  placeholder="https://your-file-host.com/bundle.zip"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Direct link to your ZIP, PDF, or other downloadable file
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  File Name (shown to customer)
-                </label>
-                <input
-                  type="text"
-                  value={digitalFileName}
-                  onChange={e => setDigitalFileName(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                  placeholder="Vintage-Botanicals-Bundle.zip"
-                />
-              </div>
-              {digitalFileUrl && (
-                <div className="flex items-center gap-2 text-green-700 bg-green-100 px-3 py-2 rounded">
-                  <span>✓</span>
-                  <span className="text-sm">Digital file configured</span>
-                  <a 
-                    href={digitalFileUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-sm underline ml-auto"
-                  >
-                    Test link →
-                  </a>
+              <button
+                type="button"
+                onClick={handlePushToStore}
+                disabled={!selectedPushStore || pushing}
+                className="w-full py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {pushing ? 'Pushing...' : 'Push to Store'}
+              </button>
+              
+              {pushResult && (
+                <div className={`mt-3 p-3 rounded-lg text-sm ${
+                  pushResult.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                }`}>
+                  {pushResult.message}
                 </div>
               )}
             </div>
-          )}
-        </div>
 
-        {/* Attributes Section - Editable */}
-        {attributes.length > 0 && productPlatform !== 'shopify' && (
-          <div className="border-t pt-4 mt-2">
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Product Attributes
-              <span className="ml-2 text-xs font-normal text-gray-500">
-                (editable)
-              </span>
-            </label>
-            <div className="space-y-3">
-              {attributes.map((attr, attrIndex) => (
-                <div key={attr.id || attrIndex} className="bg-gray-50 p-3 rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium text-gray-900">{attr.name}</span>
-                    <div className="flex gap-2 text-xs">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const updated = [...attributes]
-                          updated[attrIndex] = { ...attr, visible: !attr.visible }
-                          setAttributes(updated)
-                        }}
-                        className={`px-2 py-0.5 rounded cursor-pointer transition-colors ${
-                          attr.visible 
-                            ? 'bg-green-100 text-green-700 hover:bg-green-200' 
-                            : 'bg-gray-200 text-gray-500 hover:bg-gray-300'
-                        }`}
-                      >
-                        {attr.visible ? 'Visible' : 'Hidden'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const updated = [...attributes]
-                          updated[attrIndex] = { ...attr, variation: !attr.variation }
-                          setAttributes(updated)
-                        }}
-                        className={`px-2 py-0.5 rounded cursor-pointer transition-colors ${
-                          attr.variation 
-                            ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
-                            : 'bg-gray-200 text-gray-500 hover:bg-gray-300'
-                        }`}
-                      >
-                        {attr.variation ? 'Variations' : 'No variations'}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 mb-2">
-                    {attr.options.map((option, optIndex) => (
-                      <span 
-                        key={optIndex}
-                        className="px-2 py-1 bg-white border border-gray-200 rounded text-sm text-gray-700 flex items-center gap-1 group"
-                      >
-                        {option}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const updated = [...attributes]
-                            updated[attrIndex] = {
-                              ...attr,
-                              options: attr.options.filter((_, i) => i !== optIndex)
-                            }
-                            setAttributes(updated)
-                          }}
-                          className="text-gray-400 hover:text-red-500 ml-1"
-                          title="Remove option"
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Add option..."
-                      value={newOptionInputs[attrIndex] || ''}
-                      onChange={(e) => {
-                        setNewOptionInputs(prev => ({ ...prev, [attrIndex]: e.target.value }))
-                      }}
-                      className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          const value = (newOptionInputs[attrIndex] || '').trim()
-                          if (value && !attr.options.includes(value)) {
-                            const updated = [...attributes]
-                            updated[attrIndex] = {
-                              ...attr,
-                              options: [...attr.options, value]
-                            }
-                            setAttributes(updated)
-                            setNewOptionInputs(prev => ({ ...prev, [attrIndex]: '' }))
-                          }
-                        }
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const value = (newOptionInputs[attrIndex] || '').trim()
-                        if (value && !attr.options.includes(value)) {
-                          const updated = [...attributes]
-                          updated[attrIndex] = {
-                            ...attr,
-                            options: [...attr.options, value]
-                          }
-                          setAttributes(updated)
-                          setNewOptionInputs(prev => ({ ...prev, [attrIndex]: '' }))
-                        }
-                      }}
-                      className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
-                    >
-                      Add
-                    </button>
-                  </div>
-                </div>
-              ))}
+            {/* Save Button - Sticky */}
+            <div className="sticky bottom-6">
+              <button
+                type="submit"
+                disabled={saving}
+                className="w-full py-3 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 disabled:opacity-50"
+              >
+                {saving ? 'Saving...' : 'Save'}
+              </button>
             </div>
           </div>
-        )}
-
-        {/* Variations Section - for variable products */}
-        {productType === 'variable' && (
-          <div className="border-t pt-4 mt-2">
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Product Variations
-              <span className="ml-2 text-xs font-normal text-gray-500">
-                (from WooCommerce - {variations.length} variations)
-              </span>
-            </label>
-            {loadingVariations ? (
-              <div className="text-sm text-gray-500">Loading variations...</div>
-            ) : variations.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead>
-                    <tr className="bg-gray-50">
-                      <th className="px-3 py-2 text-left font-medium text-gray-700">Variation</th>
-                      <th className="px-3 py-2 text-left font-medium text-gray-700">SKU</th>
-                      <th className="px-3 py-2 text-left font-medium text-gray-700">Price</th>
-                      <th className="px-3 py-2 text-left font-medium text-gray-700">Stock</th>
-                      <th className="px-3 py-2 text-left font-medium text-gray-700">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {variations.map((variation) => {
-                      const isEditing = editedVariationPrices[variation.id] !== undefined
-                      const currentPrice = isEditing 
-                        ? editedVariationPrices[variation.id] 
-                        : (variation.regular_price || variation.price || '0')
-                      const hasChanged = isEditing && editedVariationPrices[variation.id] !== (variation.regular_price || variation.price || '0')
-                      
-                      return (
-                      <tr key={variation.id} className="hover:bg-gray-50">
-                        <td className="px-3 py-2">
-                          <div className="flex flex-wrap gap-1">
-                            {variation.attributes.map((attr, i) => (
-                              <span key={i} className="px-2 py-0.5 bg-gray-100 rounded text-xs">
-                                {attr.name}: {attr.option}
-                              </span>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="px-3 py-2 text-gray-600">
-                          {variation.sku || '-'}
-                        </td>
-                        <td className="px-3 py-2">
-                          <div className="flex items-center gap-1">
-                            <span className="text-gray-400">$</span>
-                            <input
-                              type="text"
-                              value={currentPrice}
-                              onChange={(e) => {
-                                setEditedVariationPrices(prev => ({
-                                  ...prev,
-                                  [variation.id]: e.target.value
-                                }))
-                              }}
-                              className={`w-20 px-2 py-1 text-sm border rounded focus:ring-1 focus:ring-blue-500 outline-none ${
-                                hasChanged ? 'border-blue-400 bg-blue-50' : 'border-gray-300'
-                              }`}
-                            />
-                          </div>
-                          {variation.sale_price && (
-                            <span className="text-green-600 text-xs">
-                              Sale: ${variation.sale_price}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2">
-                          <span className={`px-2 py-0.5 rounded text-xs ${
-                            variation.stock_status === 'instock' 
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-red-100 text-red-700'
-                          }`}>
-                            {variation.stock_status === 'instock' ? 'In Stock' : 'Out of Stock'}
-                            {variation.stock_quantity !== null && ` (${variation.stock_quantity})`}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2">
-                          {hasChanged && (
-                            <button
-                              type="button"
-                              onClick={() => handleSaveVariationPrice(variation.id)}
-                              disabled={savingVariationId === variation.id}
-                              className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                            >
-                              {savingVariationId === variation.id ? 'Saving...' : 'Save'}
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    )})}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="text-sm text-gray-500">
-                No variations found. Variations are managed in WooCommerce.
-              </div>
-            )}
-            <p className="mt-2 text-xs text-gray-500">
-              Edit prices inline and click Save to update WooCommerce.
-            </p>
-          </div>
-        )}
-
-        <div className="flex gap-3 pt-4">
-          <button
-            type="submit"
-            disabled={saving}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-          >
-            {saving ? 'Saving...' : 'Save Changes'}
-          </button>
-          <Link to="/products" className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">
-            Cancel
-          </Link>
         </div>
       </form>
 
