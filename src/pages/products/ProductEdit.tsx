@@ -42,6 +42,7 @@ export function ProductEdit() {
   const [description, setDescription] = useState('')
   const [price, setPrice] = useState('')
   const [artist, setArtist] = useState('')
+  const [vendor, setVendor] = useState('')  // Shopify vendor field
   const [category, setCategory] = useState('')
   const [imageUrl, setImageUrl] = useState('')
   const [status, setStatus] = useState('draft')
@@ -102,6 +103,7 @@ export function ProductEdit() {
       setDescription(data.description || '')
       setPrice(data.price.toString())
       setArtist(data.artist || '')
+      setVendor(data.vendor || '')  // Load Shopify vendor
       setCategory(data.category || '')
       setImageUrl(data.image_url || '')
       setStatus(data.status)
@@ -114,8 +116,8 @@ export function ProductEdit() {
       if (Array.isArray(attrs)) {
         setAttributes(attrs)
       } else if (attrs && typeof attrs === 'object') {
-        // Shopify-style attributes object
-        setShopifyTags(attrs.shopify_tags || '')
+        // Shopify-style attributes object - tags now stored in tags column
+        setShopifyTags(data.tags?.join(', ') || attrs.shopify_tags || '')
       }
       
       setProductType(data.product_type || 'simple')
@@ -209,6 +211,7 @@ export function ProductEdit() {
           description: description || null,
           price: parseFloat(price) || 0,
           artist: artist || null,
+          vendor: vendor || null,  // Shopify vendor field
           category: category || null,
           image_url: imageUrl || null,
           status,
@@ -688,6 +691,21 @@ export function ProductEdit() {
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
           />
         </div>
+
+        {/* Vendor - Shopify products */}
+        {productPlatform === 'shopify' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Vendor</label>
+            <input
+              type="text"
+              value={vendor}
+              onChange={e => setVendor(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              placeholder="e.g. Commerce Hub"
+            />
+            <p className="text-xs text-gray-500 mt-1">Shopify vendor/brand name</p>
+          </div>
+        )}
 
         {/* Category - Platform-aware */}
         <div>
