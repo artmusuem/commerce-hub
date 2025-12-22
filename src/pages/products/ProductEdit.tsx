@@ -38,6 +38,14 @@ interface ShopifyVariant {
   option3: string | null
 }
 
+// Shopify option structure (from JSONB)
+interface ShopifyOption {
+  id: number
+  name: string
+  position: number
+  values: string[]
+}
+
 interface Store {
   id: string
   platform: string
@@ -79,6 +87,9 @@ export function ProductEdit() {
   const [shopifyVariants, setShopifyVariants] = useState<ShopifyVariant[]>([])
   const [editedShopifyVariants, setEditedShopifyVariants] = useState<Record<number, Partial<ShopifyVariant>>>({})
   const [savingShopifyVariant, setSavingShopifyVariant] = useState(false)
+
+  // Shopify options (Color, Size, etc.)
+  const [shopifyOptions, setShopifyOptions] = useState<ShopifyOption[]>([])
 
   // Digital download state
   const [isDigital, setIsDigital] = useState(false)
@@ -146,6 +157,11 @@ export function ProductEdit() {
       // Load Shopify variants from JSONB column
       if (data.variants && Array.isArray(data.variants)) {
         setShopifyVariants(data.variants)
+      }
+
+      // Load Shopify options from JSONB column (Color, Size, etc.)
+      if (data.options && Array.isArray(data.options)) {
+        setShopifyOptions(data.options)
       }
       
       // Load digital download fields
@@ -330,6 +346,7 @@ export function ProductEdit() {
         status: status as 'draft' | 'active' | 'archived',
         attributes,  // Include attributes for WooCommerce sync
         variants: shopifyVariants,  // Include variants for Shopify sync
+        options: shopifyOptions,  // Include options for Shopify sync
         // Digital download fields
         is_digital: isDigital,
         digital_file_url: digitalFileUrl,
@@ -1084,6 +1101,44 @@ export function ProductEdit() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Shopify Options Section (Color, Size, etc.) */}
+        {productPlatform === 'shopify' && shopifyOptions.length > 0 && (
+          <div className="border-t pt-4 mt-2">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Product Options
+              <span className="ml-2 text-xs font-normal text-gray-500">
+                ({shopifyOptions.length} option{shopifyOptions.length !== 1 ? 's' : ''})
+              </span>
+            </label>
+            <div className="flex flex-wrap gap-4">
+              {shopifyOptions.map((option) => (
+                <div key={option.id} className="bg-gray-50 rounded-lg p-3 min-w-[150px]">
+                  <div className="text-sm font-medium text-gray-700 mb-2">{option.name}</div>
+                  <div className="flex flex-wrap gap-1">
+                    {option.values.map((value, idx) => (
+                      <span 
+                        key={idx} 
+                        className={`px-2 py-1 text-xs rounded-full ${
+                          option.name.toLowerCase() === 'color' 
+                            ? 'bg-blue-100 text-blue-700'
+                            : option.name.toLowerCase() === 'size'
+                            ? 'bg-purple-100 text-purple-700'
+                            : 'bg-gray-200 text-gray-700'
+                        }`}
+                      >
+                        {value}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-gray-500">
+              Options define how variants are organized. Manage options in Shopify admin.
+            </p>
           </div>
         )}
 
