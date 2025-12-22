@@ -2,43 +2,6 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 
-interface ShopifyVariant {
-  id: number
-  product_id: number
-  title: string
-  price: string
-  compare_at_price: string | null
-  sku: string
-  barcode: string | null
-  position: number
-  inventory_quantity: number
-  inventory_policy: string
-  inventory_management: string | null
-  option1: string | null
-  option2: string | null
-  option3: string | null
-  weight: number
-  weight_unit: string
-}
-
-interface ShopifyImage {
-  id: number
-  product_id: number
-  position: number
-  src: string
-  alt: string | null
-  width: number
-  height: number
-}
-
-interface ShopifyOption {
-  id: number
-  product_id: number
-  name: string
-  position: number
-  values: string[]
-}
-
 interface ShopifyProduct {
   id: number
   title: string
@@ -47,12 +10,8 @@ interface ShopifyProduct {
   product_type: string
   tags: string
   status: string
-  handle: string
-  created_at: string
-  updated_at: string
-  variants: ShopifyVariant[]
-  images: ShopifyImage[]
-  options: ShopifyOption[]
+  variants: { price: string; sku: string }[]
+  images: { src: string }[]
 }
 
 interface ShopifyStore {
@@ -154,50 +113,6 @@ export default function ShopifyImport() {
           .eq('external_id', externalId)
           .single()
 
-        // Transform variants for storage
-        const variants = product.variants.map(v => ({
-          id: v.id,
-          title: v.title,
-          price: v.price,
-          compare_at_price: v.compare_at_price,
-          sku: v.sku,
-          barcode: v.barcode,
-          position: v.position,
-          inventory_quantity: v.inventory_quantity,
-          inventory_management: v.inventory_management,
-          option1: v.option1,
-          option2: v.option2,
-          option3: v.option3,
-          weight: v.weight,
-          weight_unit: v.weight_unit
-        }))
-
-        // Transform images for storage
-        const images = product.images.map(img => ({
-          id: img.id,
-          position: img.position,
-          src: img.src,
-          alt: img.alt,
-          width: img.width,
-          height: img.height
-        }))
-
-        // Transform options for storage
-        const options = product.options.map(opt => ({
-          id: opt.id,
-          name: opt.name,
-          position: opt.position,
-          values: opt.values
-        }))
-
-        // Calculate total inventory across all variants
-        const totalInventory = product.variants.reduce(
-          (sum, v) => sum + (v.inventory_quantity || 0), 0
-        )
-
-        // Determine product type (simple vs variable)
-        const productType = product.variants.length > 1 ? 'variable' : 'simple'
-
         const productData = {
           user_id: user.id,
           store_id: selectedStore.id,
@@ -209,28 +124,10 @@ export default function ShopifyImport() {
           image_url: mainImage?.src || '',
           status: product.status === 'active' ? 'active' : 'draft',
           category: product.product_type || '',
-          artist: '', // Keep artist separate from vendor
-          vendor: product.vendor || '',
-          product_type: productType,
-          url_handle: product.handle || '',
-          tags: product.tags || '',
-          // Full variant/option data
-          variants: variants,
-          images: images,
-          options: options,
-          // Inventory
-          quantity: totalInventory,
-          track_inventory: mainVariant?.inventory_management === 'shopify',
-          // Sync tracking
-          sync_status: 'synced',
-          last_synced_at: new Date().toISOString(),
-          remote_updated_at: product.updated_at,
-          // Platform-specific attributes
+          artist: product.vendor || '',
           attributes: {
             shopify_tags: product.tags || '',
-            platform: 'shopify',
-            shopify_created_at: product.created_at,
-            has_variants: product.variants.length > 1
+            platform: 'shopify'
           }
         }
 
@@ -366,35 +263,9 @@ export default function ShopifyImport() {
               </button>
             </div>
 
-            {/* Import Summary */}
-            <div className="grid grid-cols-4 gap-4 bg-gray-50 p-4 rounded-lg">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-gray-900">{products.length}</div>
-                <div className="text-sm text-gray-500">Products</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-purple-600">
-                  {products.reduce((sum, p) => sum + p.variants.length, 0)}
-                </div>
-                <div className="text-sm text-gray-500">Variants</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">
-                  {products.reduce((sum, p) => sum + p.images.length, 0)}
-                </div>
-                <div className="text-sm text-gray-500">Images</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">
-                  {products.filter(p => p.status === 'active').length}
-                </div>
-                <div className="text-sm text-gray-500">Active</div>
-              </div>
-            </div>
-
             <div className="max-h-96 overflow-y-auto border rounded-lg">
               {products.map(product => (
-                <div key={product.id} className="flex items-center gap-3 p-3 border-b last:border-b-0 hover:bg-gray-50">
+                <div key={product.id} className="flex items-center gap-3 p-3 border-b last:border-b-0">
                   {product.images[0] && (
                     <img
                       src={product.images[0].src}
@@ -404,25 +275,9 @@ export default function ShopifyImport() {
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate">{product.title}</p>
-                    <div className="flex items-center gap-2 text-sm text-gray-500">
-                      <span>${product.variants[0]?.price || '0'}</span>
-                      <span>•</span>
-                      <span className={product.status === 'active' ? 'text-green-600' : 'text-gray-400'}>
-                        {product.status}
-                      </span>
-                      {product.variants.length > 1 && (
-                        <>
-                          <span>•</span>
-                          <span className="text-purple-600">{product.variants.length} variants</span>
-                        </>
-                      )}
-                      {product.images.length > 1 && (
-                        <>
-                          <span>•</span>
-                          <span className="text-blue-600">{product.images.length} images</span>
-                        </>
-                      )}
-                    </div>
+                    <p className="text-sm text-gray-500">
+                      ${product.variants[0]?.price || '0'} • {product.status}
+                    </p>
                   </div>
                 </div>
               ))}
