@@ -17,6 +17,14 @@ interface ShopifyVariant {
   option3: string | null
 }
 
+interface ShopifyOption {
+  id: number
+  product_id: number
+  name: string
+  position: number
+  values: string[]
+}
+
 interface ShopifyProduct {
   id: number
   title: string
@@ -26,6 +34,7 @@ interface ShopifyProduct {
   tags: string
   status: string
   variants: ShopifyVariant[]
+  options: ShopifyOption[]
   images: { src: string }[]
 }
 
@@ -152,6 +161,14 @@ export default function ShopifyImport() {
           option3: v.option3
         }))
 
+        // Transform options for JSONB storage (e.g., "Color", "Size")
+        const optionsData = product.options?.map(opt => ({
+          id: opt.id,
+          name: opt.name,
+          position: opt.position,
+          values: opt.values
+        })) || []
+
         const productData = {
           user_id: user.id,
           store_id: selectedStore.id,
@@ -167,6 +184,7 @@ export default function ShopifyImport() {
           vendor: product.vendor || '',  // Shopify vendor field
           product_type: productType,  // 'simple' or 'variable'
           variants: variantsData,  // Full variant data as JSONB
+          options: optionsData,  // Product options (Color, Size, etc.)
           tags: tagsArray,  // Proper array format for PostgreSQL TEXT[]
           attributes: {
             platform: 'shopify'
