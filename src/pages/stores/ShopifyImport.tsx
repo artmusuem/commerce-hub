@@ -118,6 +118,9 @@ export default function ShopifyImport() {
           ? product.tags.split(',').map(t => t.trim()).filter(t => t.length > 0)
           : null
 
+        // Determine product type based on variants
+        const productType = product.variants.length > 1 ? 'variable' : 'simple'
+
         const productData = {
           user_id: user.id,
           store_id: selectedStore.id,
@@ -131,6 +134,7 @@ export default function ShopifyImport() {
           category: product.product_type || '',
           artist: '',  // Keep empty for Shopify products
           vendor: product.vendor || '',  // Shopify vendor field
+          product_type: productType,  // 'simple' or 'variable'
           tags: tagsArray,  // Proper array format for PostgreSQL TEXT[]
           attributes: {
             platform: 'shopify'
