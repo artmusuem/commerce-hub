@@ -42,6 +42,13 @@ export interface CommerceHubProduct {
     option2: string | null
     option3: string | null
   }[]
+  // Shopify options (Color, Size, etc.)
+  options?: {
+    id: number
+    name: string
+    position: number
+    values: string[]
+  }[]
   // Digital download fields
   is_digital?: boolean
   digital_file_url?: string | null
@@ -71,6 +78,11 @@ export interface ShopifyPushPayload {
     option1?: string | null
     option2?: string | null
     option3?: string | null
+  }[]
+  options?: {
+    id?: number
+    name: string
+    values: string[]
   }[]
   images?: { src: string; alt?: string }[]
 }
@@ -243,6 +255,15 @@ export function transformToShopify(
     tags,
     status: statusMap[product.status] || 'draft',
     variants
+  }
+
+  // Add options if present (Color, Size, etc.)
+  if (product.options && product.options.length > 0) {
+    payload.options = product.options.map(opt => ({
+      id: opt.id,
+      name: opt.name,
+      values: opt.values
+    }))
   }
 
   // Add image if present
