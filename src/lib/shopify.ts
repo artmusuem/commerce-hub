@@ -132,67 +132,6 @@ export async function pushProductToShopify(
   return data.product
 }
 
-/**
- * Update a single Shopify variant
- */
-export async function updateShopifyVariant(
-  shopDomain: string,
-  accessToken: string,
-  variantId: number,
-  updates: {
-    price?: string
-    compare_at_price?: string | null
-    sku?: string
-    barcode?: string | null
-    inventory_quantity?: number
-  }
-): Promise<ShopifyVariant> {
-  const response = await fetch('/api/shopify/variant', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      shop: shopDomain,
-      accessToken,
-      variantId,
-      updates
-    })
-  })
-
-  if (!response.ok) {
-    const error = await response.text()
-    throw new Error(`Failed to update variant: ${error}`)
-  }
-
-  const data = await response.json()
-  return data.variant
-}
-
-/**
- * Fetch products from Shopify via serverless proxy (avoids CORS)
- */
-export async function fetchShopifyProductsViaProxy(
-  shopDomain: string,
-  accessToken: string
-): Promise<ShopifyProduct[]> {
-  const response = await fetch('/api/shopify/products', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      shop: shopDomain,
-      accessToken,
-      action: 'fetch'
-    })
-  })
-
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.error || 'Failed to fetch products')
-  }
-
-  const data = await response.json()
-  return data.products || []
-}
-
 // Validate HMAC for OAuth callback (simplified - full validation should be server-side)
 export function validateOAuthState(state: string): boolean {
   const savedState = sessionStorage.getItem('shopify_oauth_state')
