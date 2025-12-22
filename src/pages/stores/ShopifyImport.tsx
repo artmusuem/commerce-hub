@@ -113,6 +113,11 @@ export default function ShopifyImport() {
           .eq('external_id', externalId)
           .single()
 
+        // Convert Shopify tags (comma-separated string) to array for PostgreSQL TEXT[]
+        const tagsArray = product.tags 
+          ? product.tags.split(',').map(t => t.trim()).filter(t => t.length > 0)
+          : null
+
         const productData = {
           user_id: user.id,
           store_id: selectedStore.id,
@@ -126,8 +131,8 @@ export default function ShopifyImport() {
           category: product.product_type || '',
           artist: '',  // Keep empty for Shopify products
           vendor: product.vendor || '',  // Shopify vendor field
+          tags: tagsArray,  // Proper array format for PostgreSQL TEXT[]
           attributes: {
-            shopify_tags: product.tags || '',
             platform: 'shopify'
           }
         }
