@@ -22,6 +22,36 @@ interface ProductAttribute {
   options: string[]
 }
 
+// Shopify-specific types
+interface ShopifyVariant {
+  id: number
+  title: string
+  price: string
+  compare_at_price?: string | null
+  sku: string
+  barcode?: string | null
+  position: number
+  inventory_quantity: number
+  inventory_management?: string | null
+  option1?: string | null
+  option2?: string | null
+  option3?: string | null
+}
+
+interface ShopifyOption {
+  id: number
+  name: string
+  position: number
+  values: string[]
+}
+
+interface ShopifyImage {
+  id: number
+  position: number
+  src: string
+  alt?: string | null
+}
+
 interface Store {
   id: string
   platform: string
@@ -57,6 +87,17 @@ export function ProductEdit() {
   const [loadingVariations, setLoadingVariations] = useState(false)
   const [editedVariationPrices, setEditedVariationPrices] = useState<Record<number, string>>({})
   const [savingVariationId, setSavingVariationId] = useState<number | null>(null)
+
+  // Shopify-specific state
+  const [shopifyVariants, setShopifyVariants] = useState<ShopifyVariant[]>([])
+  const [shopifyOptions, setShopifyOptions] = useState<ShopifyOption[]>([])
+  const [shopifyImages, setShopifyImages] = useState<ShopifyImage[]>([])
+  const [vendor, setVendor] = useState('')
+  const [urlHandle, setUrlHandle] = useState('')
+  const [syncStatus, setSyncStatus] = useState('synced')
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
+  const [editedShopifyPrices, setEditedShopifyPrices] = useState<Record<number, string>>({})
+  const [savingShopifyVariantId, setSavingShopifyVariantId] = useState<number | null>(null)
 
   // Digital download state
   const [isDigital, setIsDigital] = useState(false)
@@ -124,6 +165,23 @@ export function ProductEdit() {
       setIsDigital(data.is_digital || false)
       setDigitalFileUrl(data.digital_file_url || '')
       setDigitalFileName(data.digital_file_name || '')
+
+      // Load Shopify-specific fields
+      setVendor(data.vendor || '')
+      setUrlHandle(data.url_handle || '')
+      setSyncStatus(data.sync_status || 'synced')
+      setLastSyncedAt(data.last_synced_at || null)
+      
+      // Load Shopify variants, options, and images
+      if (data.variants && Array.isArray(data.variants)) {
+        setShopifyVariants(data.variants)
+      }
+      if (data.options && Array.isArray(data.options)) {
+        setShopifyOptions(data.options)
+      }
+      if (data.images && Array.isArray(data.images)) {
+        setShopifyImages(data.images)
+      }
 
       // Load stores for push functionality
       const { data: storesData } = await supabase
@@ -198,27 +256,49 @@ export function ProductEdit() {
       if (productPlatform === 'shopify') {
         attributesToSave = {
           shopify_tags: shopifyTags,
-          platform: 'shopify'
+          platform: 'shopify',
+          has_variants: shopifyVariants.length > 1
+        }
+      }
+
+      // Build update object
+      const updateData: Record<string, unknown> = {
+        title,
+        description: description || null,
+        price: parseFloat(price) || 0,
+        artist: artist || null,
+        category: category || null,
+        image_url: imageUrl || null,
+        status,
+        sku: sku || null,
+        attributes: attributesToSave,
+        // Digital download fields
+        is_digital: isDigital,
+        digital_file_url: digitalFileUrl || null,
+        digital_file_name: digitalFileName || null,
+      }
+
+      // Add Shopify-specific fields
+      if (productPlatform === 'shopify') {
+        updateData.vendor = vendor || null
+        updateData.url_handle = urlHandle || null
+        updateData.tags = shopifyTags || null
+        updateData.sync_status = 'modified' // Mark as modified when saving locally
+        // Preserve variants/options/images (they're updated via API, not form)
+        if (shopifyVariants.length > 0) {
+          updateData.variants = shopifyVariants
+        }
+        if (shopifyOptions.length > 0) {
+          updateData.options = shopifyOptions
+        }
+        if (shopifyImages.length > 0) {
+          updateData.images = shopifyImages
         }
       }
       
       const { error: updateError } = await supabase
         .from('products')
-        .update({
-          title,
-          description: description || null,
-          price: parseFloat(price) || 0,
-          artist: artist || null,
-          category: category || null,
-          image_url: imageUrl || null,
-          status,
-          sku: sku || null,
-          attributes: attributesToSave,
-          // Digital download fields
-          is_digital: isDigital,
-          digital_file_url: digitalFileUrl || null,
-          digital_file_name: digitalFileName || null,
-        })
+        .update(updateData)
         .eq('id', id)
 
       console.log('Supabase response:', updateError ? 'ERROR' : 'SUCCESS')
@@ -350,7 +430,9 @@ export function ProductEdit() {
         }
 
         const shopDomain = store.store_url?.replace(/^https?:\/\//, '').replace(/\/$/, '') || ''
-        const shopifyProduct = transformToShopify(product, store.store_name || 'Commerce Hub', shopifyTags)
+        // Use vendor field if set, otherwise fall back to store name
+        const vendorName = vendor || store.store_name || 'Commerce Hub'
+        const shopifyProduct = transformToShopify(product, vendorName, shopifyTags)
         
         // Only use external_id for updates if product came from Shopify
         // (prevents using WooCommerce ID to try updating Shopify)
@@ -376,15 +458,26 @@ export function ProductEdit() {
         const result = await response.json()
         const productData = result.product
         
+        // Update sync status and external_id
+        const syncUpdate: Record<string, unknown> = {
+          sync_status: 'synced',
+          last_synced_at: new Date().toISOString()
+        }
+        
         // Only save external_id if this was a create AND product is from Shopify
         // (don't overwrite Gallery Store or WooCommerce external_id)
         if (!isUpdate && productData?.id && productPlatform === 'shopify') {
-          await supabase
-            .from('products')
-            .update({ external_id: String(productData.id) })
-            .eq('id', id)
+          syncUpdate.external_id = String(productData.id)
           setExternalId(String(productData.id))
         }
+        
+        await supabase
+          .from('products')
+          .update(syncUpdate)
+          .eq('id', id)
+        
+        setSyncStatus('synced')
+        setLastSyncedAt(new Date().toISOString())
 
         setPushResult({
           success: true,
@@ -746,6 +839,178 @@ export function ProductEdit() {
             <p className="text-xs text-gray-500 mt-1">
               Comma-separated tags for Shopify filtering
             </p>
+          </div>
+        )}
+
+        {/* Vendor field - show for Shopify products */}
+        {productPlatform === 'shopify' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Vendor
+            </label>
+            <input
+              type="text"
+              value={vendor}
+              onChange={e => setVendor(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              placeholder="Vendor name"
+            />
+          </div>
+        )}
+
+        {/* Shopify Options (Size, Color, etc.) - read-only display */}
+        {productPlatform === 'shopify' && shopifyOptions.length > 0 && (
+          <div className="border-t pt-4 mt-2">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Product Options
+            </label>
+            <div className="flex flex-wrap gap-4">
+              {shopifyOptions.map(option => (
+                <div key={option.id} className="bg-gray-50 p-3 rounded-lg">
+                  <div className="text-sm font-medium text-gray-700 mb-2">{option.name}</div>
+                  <div className="flex flex-wrap gap-1">
+                    {option.values.map((value, idx) => (
+                      <span key={idx} className="px-2 py-1 bg-white border rounded text-sm">
+                        {value}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Shopify Variants - editable prices */}
+        {productPlatform === 'shopify' && shopifyVariants.length > 1 && (
+          <div className="border-t pt-4 mt-2">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Variants
+              <span className="ml-2 text-xs font-normal text-purple-600 bg-purple-50 px-2 py-0.5 rounded">
+                {shopifyVariants.length} variants
+              </span>
+            </label>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-gray-50">
+                    <th className="text-left py-2 px-3 font-medium">Variant</th>
+                    <th className="text-left py-2 px-3 font-medium">SKU</th>
+                    <th className="text-left py-2 px-3 font-medium">Price</th>
+                    <th className="text-left py-2 px-3 font-medium">Inventory</th>
+                    <th className="text-left py-2 px-3 font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {shopifyVariants.map(variant => (
+                    <tr key={variant.id} className="border-b hover:bg-gray-50">
+                      <td className="py-2 px-3">
+                        <span className="font-medium">{variant.title}</span>
+                      </td>
+                      <td className="py-2 px-3 text-gray-500">
+                        {variant.sku || '—'}
+                      </td>
+                      <td className="py-2 px-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-500">$</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={editedShopifyPrices[variant.id] ?? variant.price}
+                            onChange={e => setEditedShopifyPrices(prev => ({
+                              ...prev,
+                              [variant.id]: e.target.value
+                            }))}
+                            className="w-24 px-2 py-1 border rounded text-sm"
+                          />
+                        </div>
+                      </td>
+                      <td className="py-2 px-3">
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          variant.inventory_quantity > 10 
+                            ? 'bg-green-100 text-green-700'
+                            : variant.inventory_quantity > 0
+                              ? 'bg-yellow-100 text-yellow-700'
+                              : 'bg-red-100 text-red-700'
+                        }`}>
+                          {variant.inventory_quantity ?? 0}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3">
+                        {editedShopifyPrices[variant.id] !== undefined && 
+                         editedShopifyPrices[variant.id] !== variant.price && (
+                          <button
+                            onClick={() => {
+                              // TODO: Save variant price to Shopify
+                              console.log('Save variant', variant.id, editedShopifyPrices[variant.id])
+                            }}
+                            disabled={savingShopifyVariantId === variant.id}
+                            className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 disabled:opacity-50"
+                          >
+                            {savingShopifyVariantId === variant.id ? 'Saving...' : 'Save'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Shopify Images Gallery */}
+        {productPlatform === 'shopify' && shopifyImages.length > 1 && (
+          <div className="border-t pt-4 mt-2">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Images
+              <span className="ml-2 text-xs font-normal text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                {shopifyImages.length} images
+              </span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {shopifyImages.sort((a, b) => a.position - b.position).map((img, idx) => (
+                <div key={img.id} className="relative group">
+                  <img
+                    src={img.src}
+                    alt={img.alt || `Image ${idx + 1}`}
+                    className="w-20 h-20 object-cover rounded border"
+                  />
+                  {idx === 0 && (
+                    <span className="absolute top-1 left-1 bg-blue-600 text-white text-xs px-1 rounded">
+                      Primary
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Sync Status - show for Shopify products */}
+        {productPlatform === 'shopify' && (
+          <div className="border-t pt-4 mt-2">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Sync Status
+            </label>
+            <div className="flex items-center gap-4">
+              <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                syncStatus === 'synced' ? 'bg-green-100 text-green-700' :
+                syncStatus === 'modified' ? 'bg-yellow-100 text-yellow-700' :
+                syncStatus === 'error' ? 'bg-red-100 text-red-700' :
+                'bg-gray-100 text-gray-700'
+              }`}>
+                {syncStatus === 'synced' ? '✓ Synced' :
+                 syncStatus === 'modified' ? '⚠ Modified Locally' :
+                 syncStatus === 'error' ? '✗ Error' :
+                 syncStatus}
+              </span>
+              {lastSyncedAt && (
+                <span className="text-sm text-gray-500">
+                  Last synced: {new Date(lastSyncedAt).toLocaleString()}
+                </span>
+              )}
+            </div>
           </div>
         )}
 
