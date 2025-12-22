@@ -2,6 +2,21 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 
+interface ShopifyVariant {
+  id: number
+  title: string
+  price: string
+  compare_at_price: string | null
+  sku: string
+  barcode: string | null
+  position: number
+  inventory_quantity: number
+  inventory_management: string | null
+  option1: string | null
+  option2: string | null
+  option3: string | null
+}
+
 interface ShopifyProduct {
   id: number
   title: string
@@ -10,7 +25,7 @@ interface ShopifyProduct {
   product_type: string
   tags: string
   status: string
-  variants: { price: string; sku: string }[]
+  variants: ShopifyVariant[]
   images: { src: string }[]
 }
 
@@ -121,6 +136,22 @@ export default function ShopifyImport() {
         // Determine product type based on variants
         const productType = product.variants.length > 1 ? 'variable' : 'simple'
 
+        // Transform variants for JSONB storage
+        const variantsData = product.variants.map(v => ({
+          id: v.id,
+          title: v.title,
+          price: v.price,
+          compare_at_price: v.compare_at_price,
+          sku: v.sku || '',
+          barcode: v.barcode,
+          position: v.position,
+          inventory_quantity: v.inventory_quantity || 0,
+          inventory_management: v.inventory_management,
+          option1: v.option1,
+          option2: v.option2,
+          option3: v.option3
+        }))
+
         const productData = {
           user_id: user.id,
           store_id: selectedStore.id,
@@ -135,6 +166,7 @@ export default function ShopifyImport() {
           artist: '',  // Keep empty for Shopify products
           vendor: product.vendor || '',  // Shopify vendor field
           product_type: productType,  // 'simple' or 'variable'
+          variants: variantsData,  // Full variant data as JSONB
           tags: tagsArray,  // Proper array format for PostgreSQL TEXT[]
           attributes: {
             platform: 'shopify'
