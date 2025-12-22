@@ -131,13 +131,8 @@ export function ProductsIndex() {
     }
   }
 
-  const statusColors: Record<string, string> = {
-    active: 'bg-green-100 text-green-700',
-    draft: 'bg-yellow-100 text-yellow-700',
-    archived: 'bg-gray-100 text-gray-700',
-  }
-
   const platformColors: Record<string, string> = {
+    'shopify': 'bg-green-100 text-green-700',
     'gallery-store': 'bg-blue-100 text-blue-700',
     'woocommerce': 'bg-purple-100 text-purple-700',
     'etsy': 'bg-orange-100 text-orange-700',
@@ -163,8 +158,8 @@ export function ProductsIndex() {
     return stores.find(s => s.id === storeId)
   }
 
-  // Get current store name for header
-  const currentStoreName = selectedStore === 'all' 
+  // Get current store name for header (currently unused but kept for future use)
+  const _currentStoreName = selectedStore === 'all' 
     ? null 
     : selectedStore === 'unassigned'
     ? 'Unassigned'
