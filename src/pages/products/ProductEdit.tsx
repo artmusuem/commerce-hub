@@ -321,11 +321,13 @@ export function ProductEdit() {
         description,
         price: parseFloat(price) || 0,
         artist,
+        vendor,  // Include vendor for Shopify
         category,
         image_url: imageUrl,
         sku,
         status: status as 'draft' | 'active' | 'archived',
         attributes,  // Include attributes for WooCommerce sync
+        variants: shopifyVariants,  // Include variants for Shopify sync
         // Digital download fields
         is_digital: isDigital,
         digital_file_url: digitalFileUrl,
