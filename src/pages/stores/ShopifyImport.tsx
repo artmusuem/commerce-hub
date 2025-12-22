@@ -124,7 +124,8 @@ export default function ShopifyImport() {
           image_url: mainImage?.src || '',
           status: product.status === 'active' ? 'active' : 'draft',
           category: product.product_type || '',
-          artist: product.vendor || '',
+          artist: '',  // Keep empty for Shopify products
+          vendor: product.vendor || '',  // Shopify vendor field
           attributes: {
             shopify_tags: product.tags || '',
             platform: 'shopify'
