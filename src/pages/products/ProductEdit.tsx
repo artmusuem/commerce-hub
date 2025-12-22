@@ -22,6 +22,22 @@ interface ProductAttribute {
   options: string[]
 }
 
+// Shopify variant structure (from JSONB)
+interface ShopifyVariant {
+  id: number
+  title: string
+  price: string
+  compare_at_price: string | null
+  sku: string
+  barcode: string | null
+  position: number
+  inventory_quantity: number
+  inventory_management: string | null
+  option1: string | null
+  option2: string | null
+  option3: string | null
+}
+
 interface Store {
   id: string
   platform: string
@@ -58,6 +74,9 @@ export function ProductEdit() {
   const [loadingVariations, setLoadingVariations] = useState(false)
   const [editedVariationPrices, setEditedVariationPrices] = useState<Record<number, string>>({})
   const [savingVariationId, setSavingVariationId] = useState<number | null>(null)
+
+  // Shopify variants (from JSONB column)
+  const [shopifyVariants, setShopifyVariants] = useState<ShopifyVariant[]>([])
 
   // Digital download state
   const [isDigital, setIsDigital] = useState(false)
@@ -121,6 +140,11 @@ export function ProductEdit() {
       }
       
       setProductType(data.product_type || 'simple')
+      
+      // Load Shopify variants from JSONB column
+      if (data.variants && Array.isArray(data.variants)) {
+        setShopifyVariants(data.variants)
+      }
       
       // Load digital download fields
       setIsDigital(data.is_digital || false)
@@ -976,8 +1000,84 @@ export function ProductEdit() {
           </div>
         )}
 
-        {/* Variations Section - for variable products */}
-        {productType === 'variable' && (
+        {/* Shopify Variants Section */}
+        {productType === 'variable' && productPlatform === 'shopify' && shopifyVariants.length > 0 && (
+          <div className="border-t pt-4 mt-2">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Product Variants
+              <span className="ml-2 text-xs font-normal text-gray-500">
+                (from Shopify - {shopifyVariants.length} variants)
+              </span>
+            </label>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="px-3 py-2 text-left font-medium text-gray-700">Variant</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-700">SKU</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-700">Price</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-700">Compare At</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-700">Inventory</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {shopifyVariants.map((variant) => (
+                    <tr key={variant.id} className="hover:bg-gray-50">
+                      <td className="px-3 py-2">
+                        <div className="font-medium">{variant.title}</div>
+                        {(variant.option1 || variant.option2 || variant.option3) && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {variant.option1 && (
+                              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">
+                                {variant.option1}
+                              </span>
+                            )}
+                            {variant.option2 && (
+                              <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs">
+                                {variant.option2}
+                              </span>
+                            )}
+                            {variant.option3 && (
+                              <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs">
+                                {variant.option3}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-gray-600 font-mono text-xs">
+                        {variant.sku || '-'}
+                      </td>
+                      <td className="px-3 py-2 font-medium">
+                        ${variant.price}
+                      </td>
+                      <td className="px-3 py-2 text-gray-500">
+                        {variant.compare_at_price ? `$${variant.compare_at_price}` : '-'}
+                      </td>
+                      <td className="px-3 py-2">
+                        <span className={`px-2 py-0.5 rounded text-xs ${
+                          variant.inventory_quantity > 10 
+                            ? 'bg-green-100 text-green-700'
+                            : variant.inventory_quantity > 0
+                            ? 'bg-yellow-100 text-yellow-700'
+                            : 'bg-red-100 text-red-700'
+                        }`}>
+                          {variant.inventory_quantity} in stock
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-2 text-xs text-gray-500">
+              Variant data synced from Shopify. Edit variants in your Shopify admin.
+            </p>
+          </div>
+        )}
+
+        {/* WooCommerce Variations Section - for variable products */}
+        {productType === 'variable' && productPlatform === 'woocommerce' && (
           <div className="border-t pt-4 mt-2">
             <label className="block text-sm font-medium text-gray-700 mb-3">
               Product Variations
