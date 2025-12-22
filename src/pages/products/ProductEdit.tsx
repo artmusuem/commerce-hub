@@ -165,6 +165,8 @@ export function ProductEdit() {
       if (data.store_id && storesData) {
         const productStore = storesData.find(s => s.id === data.store_id)
         setProductPlatform(productStore?.platform || null)
+        // Auto-select the product's original store for push
+        setSelectedPushStore(data.store_id)
       }
       
       setLoading(false)
@@ -700,10 +702,27 @@ export function ProductEdit() {
         <Link to="/products" className="text-blue-600 hover:underline text-sm">← Back to Products</Link>
         <div className="flex items-center gap-3 mt-2">
           <h1 className="text-2xl font-bold text-gray-900">Edit Product</h1>
+          {/* Platform indicator */}
+          {productPlatform && (
+            <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+              productPlatform === 'shopify' 
+                ? 'bg-green-100 text-green-700' 
+                : productPlatform === 'woocommerce'
+                ? 'bg-purple-100 text-purple-700'
+                : productPlatform === 'gallery-store'
+                ? 'bg-blue-100 text-blue-700'
+                : 'bg-gray-100 text-gray-600'
+            }`}>
+              {productPlatform === 'shopify' ? '🛍️ Shopify' 
+                : productPlatform === 'woocommerce' ? '🔮 WooCommerce'
+                : productPlatform === 'gallery-store' ? '🖼️ Gallery Store'
+                : productPlatform}
+            </span>
+          )}
           {productType && productType !== 'simple' && (
             <span className={`px-2 py-1 text-xs font-medium rounded-full ${
               productType === 'variable' 
-                ? 'bg-purple-100 text-purple-700' 
+                ? 'bg-orange-100 text-orange-700' 
                 : 'bg-gray-100 text-gray-600'
             }`}>
               {productType.charAt(0).toUpperCase() + productType.slice(1)}
@@ -1323,6 +1342,21 @@ export function ProductEdit() {
               {pushResult.message}
             </div>
           )}
+
+          {/* Cross-platform push warning */}
+          {(() => {
+            if (!selectedPushStore || !productPlatform) return null
+            const selectedStore = stores.find(s => s.id === selectedPushStore)
+            if (selectedStore && selectedStore.platform !== productPlatform) {
+              return (
+                <div className="mb-4 p-3 rounded-lg text-sm bg-yellow-50 text-yellow-700 border border-yellow-200">
+                  ⚠️ This product is from <strong>{productPlatform}</strong> but you're pushing to <strong>{selectedStore.platform}</strong>. 
+                  This will create a new product there (not update).
+                </div>
+              )
+            }
+            return null
+          })()}
 
           <div className="flex gap-3">
             <select
