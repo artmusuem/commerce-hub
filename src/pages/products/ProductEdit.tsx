@@ -82,9 +82,9 @@ export function ProductEdit() {
   const [attributes, setAttributes] = useState<ProductAttribute[]>([])
   const [shopifyTags, setShopifyTags] = useState('')
   const [productType, setProductType] = useState<string>('simple')
-  const [newOptionInputs, setNewOptionInputs] = useState<Record<number, string>>({})  // Track new option input per attribute
+  const [_newOptionInputs, _setNewOptionInputs] = useState<Record<number, string>>({})  // Track new option input per attribute
   const [variations, setVariations] = useState<WooCommerceVariation[]>([])
-  const [loadingVariations, setLoadingVariations] = useState(false)
+  const [_loadingVariations, setLoadingVariations] = useState(false)
   const [editedVariationPrices, setEditedVariationPrices] = useState<Record<number, string>>({})
   const [savingVariationId, setSavingVariationId] = useState<number | null>(null)
 
@@ -97,7 +97,7 @@ export function ProductEdit() {
   const [syncStatus, setSyncStatus] = useState('synced')
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
   const [editedShopifyPrices, setEditedShopifyPrices] = useState<Record<number, string>>({})
-  const [savingShopifyVariantId, setSavingShopifyVariantId] = useState<number | null>(null)
+  const [_savingShopifyVariantId, _setSavingShopifyVariantId] = useState<number | null>(null)
 
   // Digital download state
   const [isDigital, setIsDigital] = useState(false)
