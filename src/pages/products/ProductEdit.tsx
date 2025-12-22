@@ -69,6 +69,7 @@ export function ProductEdit() {
   const [vendor, setVendor] = useState('')  // Shopify vendor field
   const [category, setCategory] = useState('')
   const [imageUrl, setImageUrl] = useState('')
+  const [allImages, setAllImages] = useState<string[]>([])  // All product images
   const [status, setStatus] = useState('draft')
   const [sku, setSku] = useState('')
   const [_storeId, setStoreId] = useState<string | null>(null)
@@ -138,6 +139,7 @@ export function ProductEdit() {
       setVendor(data.vendor || '')  // Load Shopify vendor
       setCategory(data.category || '')
       setImageUrl(data.image_url || '')
+      setAllImages(data.images || [])  // Load all product images
       setStatus(data.status)
       setSku(data.sku || '')
       setStoreId(data.store_id || null)
@@ -906,6 +908,48 @@ export function ProductEdit() {
           />
           {imageUrl && <img src={imageUrl} alt="Preview" className="mt-2 w-32 h-32 object-cover rounded-lg bg-gray-100" />}
         </div>
+
+        {/* Image Gallery - show all product images */}
+        {allImages.length > 1 && (
+          <div className="border-t pt-4 mt-2">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              All Images
+              <span className="ml-2 text-xs font-normal text-gray-500">
+                ({allImages.length} images)
+              </span>
+            </label>
+            <div className="flex flex-wrap gap-3">
+              {allImages.map((imgUrl, idx) => (
+                <div key={idx} className="relative group">
+                  <img 
+                    src={imgUrl} 
+                    alt={`Product image ${idx + 1}`} 
+                    className={`w-24 h-24 object-cover rounded-lg bg-gray-100 border-2 ${
+                      imgUrl === imageUrl ? 'border-blue-500' : 'border-transparent'
+                    }`}
+                  />
+                  {imgUrl === imageUrl && (
+                    <span className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded-full">
+                      Primary
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setImageUrl(imgUrl)}
+                    className={`absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg ${
+                      imgUrl === imageUrl ? 'hidden' : ''
+                    }`}
+                  >
+                    <span className="text-white text-xs font-medium">Set Primary</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-gray-500">
+              Click an image to set it as the primary image.
+            </p>
+          </div>
+        )}
 
         {/* Digital Download Section */}
         <div className="border-t pt-4 mt-2">
