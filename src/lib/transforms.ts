@@ -12,6 +12,7 @@ export interface CommerceHubProduct {
   description: string | null
   price: number
   artist: string | null
+  vendor?: string | null  // Shopify vendor field
   category: string | null
   image_url: string | null
   sku: string | null
@@ -25,6 +26,21 @@ export interface CommerceHubProduct {
     visible?: boolean
     variation?: boolean
     options: string[]
+  }[]
+  // Shopify variants (JSONB from database)
+  variants?: {
+    id: number
+    title: string
+    price: string
+    compare_at_price: string | null
+    sku: string
+    barcode: string | null
+    position: number
+    inventory_quantity: number
+    inventory_management: string | null
+    option1: string | null
+    option2: string | null
+    option3: string | null
   }[]
   // Digital download fields
   is_digital?: boolean
@@ -45,10 +61,16 @@ export interface ShopifyPushPayload {
   tags?: string
   status: 'active' | 'draft' | 'archived'
   variants: {
+    id?: number  // Include ID for updates (Shopify needs this to update existing variants)
     price: string
+    compare_at_price?: string | null
     sku?: string
+    barcode?: string | null
     inventory_quantity?: number
     inventory_management?: string | null
+    option1?: string | null
+    option2?: string | null
+    option3?: string | null
   }[]
   images?: { src: string; alt?: string }[]
 }
@@ -185,20 +207,42 @@ export function transformToShopify(
     tags = tags ? `${tags}, digital-download` : 'digital-download'
   }
 
-  const payload: ShopifyPushPayload = {
-    title: product.title,
-    body_html: bodyHtml,
-    vendor: vendorName,
-    product_type: product.category || 'Art Print',
-    tags,
-    status: statusMap[product.status] || 'draft',
-    variants: [{
+  // Build variants - preserve existing variants if present, otherwise create default
+  let variants: ShopifyPushPayload['variants']
+  
+  if (product.variants && product.variants.length > 0) {
+    // Pass through existing variants with their IDs (critical for updates!)
+    variants = product.variants.map(v => ({
+      id: v.id,  // Include ID so Shopify updates existing variants instead of replacing
+      price: v.price,
+      compare_at_price: v.compare_at_price,
+      sku: v.sku || undefined,
+      barcode: v.barcode,
+      inventory_quantity: v.inventory_quantity,
+      inventory_management: v.inventory_management,
+      option1: v.option1,
+      option2: v.option2,
+      option3: v.option3
+    }))
+  } else {
+    // Default single variant for simple products
+    variants = [{
       price: product.price.toFixed(2),
       sku: product.sku || `CH-${product.id.slice(0, 8)}`,
       // Digital products don't need inventory tracking
       inventory_quantity: product.is_digital ? 999 : 100,
       inventory_management: product.is_digital ? null : 'shopify'
     }]
+  }
+
+  const payload: ShopifyPushPayload = {
+    title: product.title,
+    body_html: bodyHtml,
+    vendor: product.vendor || vendorName,  // Use product's vendor if set
+    product_type: product.category || 'Art Print',
+    tags,
+    status: statusMap[product.status] || 'draft',
+    variants
   }
 
   // Add image if present
