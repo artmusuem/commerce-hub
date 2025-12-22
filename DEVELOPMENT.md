@@ -434,19 +434,26 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS vendor TEXT;
 - [x] **Phase 3:** Variants JSONB storage + editable table
 - [x] **Phase 3b:** Variant preservation on push
 - [x] **UX:** Platform badge, auto-select store, cross-platform warning
+- [x] **Phase 4:** Options storage (Color, Size, etc.) with colored pills display
+- [x] **Phase 5:** Multiple images array with gallery view + set-primary
 
 ### In Progress 🔄
 
-- [ ] **Phase 4:** Options storage (Size, Color, etc.)
-- [ ] **Phase 5:** Multiple images array
+- [ ] **Phase 6:** Sync tracking (last_synced_at, sync_status)
 
 ### Planned 📋
 
-- [ ] **Phase 6:** Sync tracking (last_synced_at, sync_status)
 - [ ] **Phase 7:** SEO fields (url_handle, meta_title, meta_description)
 - [ ] **Phase 8:** UI polish (two-column layout, status tabs)
 - [ ] **Phase 9:** Bulk operations
 - [ ] **Phase 10:** Etsy integration (pending API approval)
+
+### Strategic Pivot Option 🎯
+
+Consider stripping to core value proposition:
+- WooCommerce ↔ Shopify bidirectional sync only
+- Shopify App Store submission (distribution + portfolio)
+- See `LEARNINGS.md` for full strategic analysis
 
 ---
 
@@ -463,6 +470,7 @@ See `CREDENTIALS-PRIVATE.md` (not committed to repo) for:
 ## Related Documentation
 
 - [COMMERCE-HUB-HANDOFF.md](./COMMERCE-HUB-HANDOFF.md) - Quick start guide
+- [LEARNINGS.md](./LEARNINGS.md) - Patterns, protocols, strategic direction
 - [WooCommerce REST API](https://woocommerce.github.io/woocommerce-rest-api-docs/)
 - [Shopify Admin API](https://shopify.dev/docs/api/admin-rest)
 - [Supabase Docs](https://supabase.com/docs)
