@@ -25,6 +25,15 @@ interface ShopifyOption {
   values: string[]
 }
 
+interface ShopifyImage {
+  id: number
+  src: string
+  alt: string | null
+  position: number
+  width: number
+  height: number
+}
+
 interface ShopifyProduct {
   id: number
   title: string
@@ -35,7 +44,7 @@ interface ShopifyProduct {
   status: string
   variants: ShopifyVariant[]
   options: ShopifyOption[]
-  images: { src: string }[]
+  images: ShopifyImage[]
 }
 
 interface ShopifyStore {
@@ -169,6 +178,9 @@ export default function ShopifyImport() {
           values: opt.values
         })) || []
 
+        // Extract all image URLs for the images array
+        const allImageUrls = product.images?.map(img => img.src) || []
+
         const productData = {
           user_id: user.id,
           store_id: selectedStore.id,
@@ -178,6 +190,7 @@ export default function ShopifyImport() {
           price: parseFloat(mainVariant?.price || '0'),
           sku: mainVariant?.sku || '',
           image_url: mainImage?.src || '',
+          images: allImageUrls.length > 0 ? allImageUrls : null,  // All product images
           status: product.status === 'active' ? 'active' : 'draft',
           category: product.product_type || '',
           artist: '',  // Keep empty for Shopify products
