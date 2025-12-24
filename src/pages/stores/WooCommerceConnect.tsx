@@ -166,6 +166,18 @@ export function WooCommerceConnect() {
         }
       }
 
+      // Delete existing products for this store before import (prevents duplicates)
+      if (storeId) {
+        const { error: deleteError } = await supabase
+          .from('products')
+          .delete()
+          .eq('store_id', storeId)
+        
+        if (deleteError) {
+          console.error('Error clearing old products:', deleteError)
+        }
+      }
+
       // Transform WooCommerce products to our format
       const transformedProducts = products
         .filter(p => p.name && p.status === 'publish')
