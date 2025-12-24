@@ -51,25 +51,43 @@ export function WooCommerceConnect() {
     try {
       // Build WooCommerce API URL
       const baseUrl = siteUrl.replace(/\/$/, '')
-      const productsUrl = `${baseUrl}/wp-json/wc/v3/products?per_page=100&consumer_key=${consumerKey}&consumer_secret=${consumerSecret}`
-      const categoriesUrl = `${baseUrl}/wp-json/wc/v3/products/categories?per_page=100&consumer_key=${consumerKey}&consumer_secret=${consumerSecret}`
-
-      // Fetch products and categories in parallel
-      const [productsRes, categoriesRes] = await Promise.all([
-        fetch(productsUrl),
-        fetch(categoriesUrl)
-      ])
       
-      if (!productsRes.ok) {
-        if (productsRes.status === 401) {
-          throw new Error('Invalid API credentials. Check your Consumer Key and Secret.')
+      // Fetch ALL products with pagination
+      const allProducts: WooProduct[] = []
+      let page = 1
+      let hasMore = true
+      
+      while (hasMore) {
+        const productsUrl = `${baseUrl}/wp-json/wc/v3/products?per_page=100&page=${page}&consumer_key=${consumerKey}&consumer_secret=${consumerSecret}`
+        const productsRes = await fetch(productsUrl)
+        
+        if (!productsRes.ok) {
+          if (productsRes.status === 401) {
+            throw new Error('Invalid API credentials. Check your Consumer Key and Secret.')
+          }
+          throw new Error(`Failed to connect: ${productsRes.status}`)
         }
-        throw new Error(`Failed to connect: ${productsRes.status}`)
+
+        const productsData: WooProduct[] = await productsRes.json()
+        
+        if (productsData.length === 0) {
+          hasMore = false
+        } else {
+          allProducts.push(...productsData)
+          page++
+          // Stop if we got less than 100 (last page)
+          if (productsData.length < 100) {
+            hasMore = false
+          }
+        }
       }
+      
+      setProducts(allProducts)
 
-      const productsData: WooProduct[] = await productsRes.json()
-      setProducts(productsData)
-
+      // Fetch categories
+      const categoriesUrl = `${baseUrl}/wp-json/wc/v3/products/categories?per_page=100&consumer_key=${consumerKey}&consumer_secret=${consumerSecret}`
+      const categoriesRes = await fetch(categoriesUrl)
+      
       // Categories fetch is optional - don't fail if it errors
       if (categoriesRes.ok) {
         const categoriesData: WooCategory[] = await categoriesRes.json()
