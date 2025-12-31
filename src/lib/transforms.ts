@@ -213,8 +213,15 @@ export function transformToShopify(
     bodyHtml += `<p><strong>📥 Digital Download:</strong> You will receive a download link after purchase.</p>`
   }
 
-  // Build tags - include 'digital-download' tag for digital products
+  // Build tags - fallback to artist-based tags if none provided
   let tags = shopifyTags || ''
+  if (!tags && product.artist) {
+    // Generate default tags from artist name for Gallery Store products
+    tags = `art, print, ${product.artist.toLowerCase()}`
+  } else if (!tags) {
+    tags = 'art, print'
+  }
+  // Add digital-download tag for digital products
   if (product.is_digital && !tags.toLowerCase().includes('digital')) {
     tags = tags ? `${tags}, digital-download` : 'digital-download'
   }
