@@ -328,3 +328,151 @@ export function summarizePushResults(results: PushResult[]): {
 
   return { total: results.length, succeeded, failed, errors }
 }
+
+// ============================================
+// GALLERY STORE TRANSFORMS
+// ============================================
+
+/**
+ * Gallery Store Artwork structure (from Smithsonian JSON)
+ */
+export interface GalleryStoreArtwork {
+  title: string
+  artist: string
+  year_created: string
+  medium: string
+  image: string
+  museum: string
+  location: string
+  description: string
+  accession_number: string
+  smithsonian_id: string
+  object_type: string
+  dimensions: string
+  credit_line: string
+  created_date: string
+}
+
+/**
+ * Default price for art prints (in dollars)
+ */
+const DEFAULT_ART_PRINT_PRICE = 49.99
+
+/**
+ * Cloudinary cloud name for image proxying
+ */
+const CLOUDINARY_CLOUD = 'dh4qwuvuo'
+
+/**
+ * Transform Gallery Store artwork to Commerce Hub product format
+ * 
+ * @param artwork - Gallery Store artwork from Smithsonian JSON
+ * @param storeId - Store ID for the Gallery Store in Supabase
+ * @returns Commerce Hub product ready for Supabase insert
+ */
+export function transformFromGalleryStore(
+  artwork: GalleryStoreArtwork,
+  storeId: string
+): Omit<CommerceHubProduct, 'id'> {
+  // Normalize artist name (handle "Last, First" format)
+  const artistNormalized = normalizeArtistName(artwork.artist)
+  
+  // Generate SKU from smithsonian_id
+  const sku = `GS-${artwork.smithsonian_id.replace(/[^a-zA-Z0-9]/g, '').slice(0, 12)}`
+  
+  // Proxy Smithsonian images through Cloudinary for reliable loading
+  const imageUrl = proxySmithsonianImage(artwork.image)
+  
+  // Build description with artwork metadata
+  let description = artwork.description || ''
+  if (artwork.medium && artwork.medium !== 'Mixed media') {
+    description += `\n\nMedium: ${artwork.medium}`
+  }
+  if (artwork.year_created && artwork.year_created !== 'Date unknown') {
+    description += `\nCreated: ${artwork.year_created}`
+  }
+  if (artwork.credit_line) {
+    description += `\n\n${artwork.credit_line}`
+  }
+  
+  return {
+    title: artwork.title,
+    description: description.trim(),
+    price: DEFAULT_ART_PRINT_PRICE,
+    artist: artistNormalized,
+    vendor: artistNormalized,
+    category: artwork.object_type || 'Art Print',
+    image_url: imageUrl,
+    sku: sku,
+    status: 'active',
+    store_id: storeId,
+    product_type: 'simple',
+    // Store original Smithsonian data for reference
+    attributes: undefined,
+    variants: undefined,
+    options: undefined,
+  }
+}
+
+/**
+ * Transform batch of Gallery Store artworks
+ */
+export function transformBatchFromGalleryStore(
+  artworks: GalleryStoreArtwork[],
+  storeId: string
+): Omit<CommerceHubProduct, 'id'>[] {
+  return artworks.map(a => transformFromGalleryStore(a, storeId))
+}
+
+/**
+ * Normalize artist name from "Last, First" to "First Last"
+ */
+function normalizeArtistName(artist: string): string {
+  if (!artist) return 'Unknown Artist'
+  
+  // Check if in "Last, First" format
+  if (artist.includes(', ')) {
+    const parts = artist.split(', ')
+    if (parts.length === 2) {
+      return `${parts[1]} ${parts[0]}`
+    }
+  }
+  
+  return artist
+}
+
+/**
+ * Proxy Smithsonian image URLs through Cloudinary
+ * This solves CORS and format issues with ids.si.edu URLs
+ */
+function proxySmithsonianImage(imageUrl: string): string {
+  if (!imageUrl) return ''
+  
+  // Only proxy Smithsonian URLs
+  if (imageUrl.includes('ids.si.edu')) {
+    // Cloudinary fetch URL with .jpg extension for compatibility
+    return `https://res.cloudinary.com/${CLOUDINARY_CLOUD}/image/fetch/${encodeURIComponent(imageUrl)}.jpg`
+  }
+  
+  return imageUrl
+}
+
+/**
+ * Validate Gallery Store JSON structure
+ */
+export function validateGalleryStoreData(data: unknown): data is { 
+  collection_info: { total_items: number }
+  artworks: GalleryStoreArtwork[] 
+} {
+  if (!data || typeof data !== 'object') return false
+  const obj = data as Record<string, unknown>
+  
+  if (!obj.artworks || !Array.isArray(obj.artworks)) return false
+  if (obj.artworks.length === 0) return false
+  
+  // Check first artwork has required fields
+  const first = obj.artworks[0] as Record<string, unknown>
+  return typeof first.title === 'string' && 
+         typeof first.artist === 'string' &&
+         typeof first.image === 'string'
+}
