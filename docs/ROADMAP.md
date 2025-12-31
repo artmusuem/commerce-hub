@@ -1,5 +1,15 @@
 # Commerce Hub - Development Roadmap
 
+## Start Next Session With:
+
+```
+I'm continuing Commerce Hub development.
+Read: /mnt/project/COMMERCE-HUB-HANDOFF.md
+Current task: Step 1.1 - Fix Shopify tags sync
+```
+
+---
+
 ## Current State Assessment (Dec 31, 2024)
 
 ### ✅ What Works
@@ -34,27 +44,32 @@
 
 ### Step 1.1: Fix Shopify Tags Not Syncing
 
-**Problem:** Tags are stored in `attributes.shopify_tags` but transformToShopify expects `shopifyTags` parameter. The ProductEdit.tsx passes shopifyTags correctly, but there's a disconnect.
+**Problem:** Gallery Store products pushed to Shopify show empty Tags field.
 
-**Root Cause:** When fetching products from Shopify, tags come as a comma-separated string (`product.tags`). We're not storing them back to the product record properly.
-
-**Fix Required:**
+**Root Cause:** `transformToShopify()` already has fallback logic:
+```typescript
+const tags = shopifyTags 
+  ? shopifyTags.split(',').map(t => t.trim()).join(', ')
+  : product.artist ? `art, print, ${product.artist.toLowerCase()}` : 'art, print'
 ```
-Files to modify:
-- src/pages/stores/ShopifyConnect.tsx (or similar import page)
-  → Store tags in 'tags' column (TEXT[]) not in attributes JSONB
 
-- src/pages/products/ProductEdit.tsx
-  → Already passes shopifyTags to transform ✓
+The fallback should generate tags from artist name (e.g., "art, print, winslow homer"), but the `tags` variable isn't being included in the payload, OR the payload structure has an issue.
 
-- src/lib/transforms.ts
-  → Already builds tags string ✓
+**Investigation needed:**
+1. Check if `tags` is actually in the ShopifyPushPayload being sent
+2. Verify Shopify API is receiving the tags field
+3. Check if Shopify API requires different format
+
+**Quick Fix (if tags missing from payload):**
+```
+Files to check:
+- src/lib/transforms.ts → Verify tags in payload object
+- api/shopify/products.js → Log the product being sent
 ```
 
 **Verification:**
-1. Edit a product, add tags "art, print, homer"
-2. Push to Shopify
-3. Check Shopify admin → Tags should appear
+1. Push a Gallery Store product (Winslow Homer artwork)
+2. Check Shopify admin → Tags should show "art, print, winslow homer"
 
 **Estimated effort:** 30 minutes
 
