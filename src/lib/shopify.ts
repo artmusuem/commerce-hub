@@ -146,3 +146,44 @@ export function clearOAuthSession(): void {
   sessionStorage.removeItem('shopify_oauth_state')
   sessionStorage.removeItem('shopify_shop_domain')
 }
+
+/**
+ * Shopify Smart Collection
+ */
+export interface ShopifySmartCollection {
+  id: number
+  title: string
+  handle: string
+  rules: {
+    column: string
+    relation: string
+    condition: string
+  }[]
+}
+
+/**
+ * Ensure a Smart Collection exists for a given product type
+ * Creates it if it doesn't exist, returns existing if it does
+ */
+export async function ensureSmartCollection(
+  shopDomain: string,
+  accessToken: string,
+  productType: string
+): Promise<ShopifySmartCollection> {
+  const response = await fetch('/api/shopify/collection', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      shop: shopDomain,
+      accessToken,
+      productType
+    })
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`Failed to ensure collection: ${error}`)
+  }
+
+  return response.json()
+}
