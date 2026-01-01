@@ -27,7 +27,7 @@ export default async function handler(req, res) {
     ? cleanDomain 
     : `${cleanDomain}.myshopify.com`
   
-  const graphqlUrl = `https://${apiDomain}/admin/api/2024-04/graphql.json`
+  const graphqlUrl = `https://${apiDomain}/admin/api/2024-10/graphql.json`
 
   console.log('Taxonomy API called:', { shop: cleanDomain, apiDomain, productId, categoryName, graphqlUrl })
 
