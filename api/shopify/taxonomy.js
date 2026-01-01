@@ -17,11 +17,13 @@ export default async function handler(req, res) {
   const { shop, accessToken, productId, categoryName } = req.body
 
   if (!shop || !accessToken || !productId) {
-    return res.status(400).json({ error: 'Missing required parameters' })
+    return res.status(400).json({ error: 'Missing required parameters', received: { shop: !!shop, accessToken: !!accessToken, productId: !!productId } })
   }
 
   const cleanDomain = shop.replace(/^https?:\/\//, '').replace(/\/$/, '')
   const graphqlUrl = `https://${cleanDomain}/admin/api/2024-04/graphql.json`
+
+  console.log('Taxonomy API called:', { shop: cleanDomain, productId, categoryName, graphqlUrl })
 
   try {
     // Step 1: Search for matching taxonomy category
@@ -40,6 +42,8 @@ export default async function handler(req, res) {
       }
     `
 
+    console.log('Making GraphQL request to:', graphqlUrl)
+
     const searchResponse = await fetch(graphqlUrl, {
       method: 'POST',
       headers: {
@@ -54,9 +58,10 @@ export default async function handler(req, res) {
 
     if (!searchResponse.ok) {
       const errorText = await searchResponse.text()
-      console.error('Taxonomy search error:', errorText)
+      console.error('Taxonomy search error:', searchResponse.status, errorText)
       return res.status(searchResponse.status).json({
-        error: 'Failed to search taxonomy',
+        error: `Shopify API error: ${searchResponse.status}`,
+        url: graphqlUrl,
         details: errorText
       })
     }
@@ -67,6 +72,7 @@ export default async function handler(req, res) {
       console.error('GraphQL errors:', searchData.errors)
       return res.status(400).json({
         error: 'GraphQL query failed',
+        url: graphqlUrl,
         details: searchData.errors
       })
     }
