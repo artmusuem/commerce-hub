@@ -162,6 +162,20 @@ export function StoresIndex() {
           const existingShopifyId = product.platform_ids?.shopify
           const isUpdate = !!existingShopifyId
           
+          // ========== PRE-PUSH STATE DETECTION ==========
+          const existingVariants = product.variants || []
+          const variantsWithShopifyIds = existingVariants.filter((v: { id?: number }) => v.id && v.id > 100000)
+          const variantsWithoutShopifyIds = existingVariants.filter((v: { id?: number }) => !v.id || v.id <= 100000)
+          
+          if (!isUpdate) {
+            console.log(`🆕 CREATE: ${product.title} - No Shopify product ID`)
+          } else if (variantsWithoutShopifyIds.length > 0) {
+            console.log(`⚠️ MIXED: ${product.title} - ${variantsWithoutShopifyIds.length} variants without Shopify IDs`)
+          } else {
+            console.log(`✅ UPDATE: ${product.title} - All IDs present`)
+          }
+          // ================================================
+          
           const response = await fetch('/api/shopify/products', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -180,15 +194,61 @@ export function StoresIndex() {
           }
           
           const result = await response.json()
-          const productId = result.product?.id
+          const productData = result.product
+          const productId = productData?.id
           
-          // Save Shopify ID to platform_ids after create
-          if (productId && !isUpdate) {
-            await supabase
-              .from('products')
-              .update({ platform_ids: { ...product.platform_ids, shopify: String(productId) } })
-              .eq('id', product.id)
+          // ========== POST-PUSH: SAVE ALL SHOPIFY IDs ==========
+          if (productId) {
+            const updates: Record<string, unknown> = {}
+            
+            // Save product ID after create or recreate
+            if (!isUpdate || result.recreated) {
+              updates.platform_ids = { ...product.platform_ids, shopify: String(productId) }
+              console.log(`💾 Saved Shopify product ID for "${product.title}": ${productId}`)
+            }
+            
+            // Save variant IDs back to database
+            if (productData.variants && productData.variants.length > 0 && existingVariants.length > 0) {
+              const returnedVariants = productData.variants
+              
+              // Update local variants with Shopify's real IDs
+              const updatedVariants = existingVariants.map((localVariant: { sku?: string; option1?: string; option2?: string; option3?: string }) => {
+                const matchedShopifyVariant = returnedVariants.find((sv: { sku?: string; option1?: string; option2?: string; option3?: string }) => 
+                  (sv.sku && localVariant.sku && sv.sku === localVariant.sku) ||
+                  (sv.option1 === localVariant.option1 && sv.option2 === localVariant.option2 && sv.option3 === localVariant.option3)
+                )
+                
+                if (matchedShopifyVariant) {
+                  return {
+                    ...localVariant,
+                    id: matchedShopifyVariant.id,
+                    inventory_item_id: matchedShopifyVariant.inventory_item_id
+                  }
+                }
+                return localVariant
+              })
+              
+              const variantsUpdated = updatedVariants.some((v: { id?: number }, i: number) => v.id !== existingVariants[i]?.id)
+              if (variantsUpdated) {
+                updates.variants = updatedVariants
+                console.log(`💾 Saved ${returnedVariants.length} variant IDs for "${product.title}"`)
+              }
+            }
+            
+            // Save options with Shopify IDs
+            if (productData.options && productData.options.length > 0) {
+              updates.options = productData.options
+            }
+            
+            // Commit updates to database
+            if (Object.keys(updates).length > 0) {
+              await supabase
+                .from('products')
+                .update(updates)
+                .eq('id', product.id)
+            }
           }
+          // =====================================================
           
           // Set taxonomy category (same as single product push)
           if (productId && product.category) {
