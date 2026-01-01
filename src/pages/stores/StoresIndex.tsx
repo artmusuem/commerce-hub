@@ -158,20 +158,65 @@ export function StoresIndex() {
           const shopDomain = targetStoreData.store_url?.replace(/^https?:\/\//, '').replace(/\/$/, '') || ''
           const shopifyProduct = transformToShopify(product, targetStoreData.store_name || 'Commerce Hub')
           
+          // Check if product already exists on Shopify
+          const existingShopifyId = product.platform_ids?.shopify
+          const isUpdate = !!existingShopifyId
+          
           const response = await fetch('/api/shopify/products', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               shop: shopDomain,
               accessToken: credentials.access_token,
-              action: 'create',
+              action: isUpdate ? 'update' : 'create',
+              productId: isUpdate ? existingShopifyId : undefined,
               product: shopifyProduct
             })
           })
 
           if (!response.ok) {
-            throw new Error('Shopify push failed')
+            const errorData = await response.json().catch(() => ({}))
+            throw new Error(`Shopify: ${errorData.details || errorData.error || response.status}`)
           }
+          
+          const result = await response.json()
+          const productId = result.product?.id
+          
+          // Save Shopify ID to platform_ids after create
+          if (productId && !isUpdate) {
+            await supabase
+              .from('products')
+              .update({ platform_ids: { ...product.platform_ids, shopify: String(productId) } })
+              .eq('id', product.id)
+          }
+          
+          // Set taxonomy category (same as single product push)
+          if (productId && product.category) {
+            await fetch('/api/shopify/taxonomy', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                shop: shopDomain,
+                accessToken: credentials.access_token,
+                productId: productId,
+                categoryName: product.category
+              })
+            })
+          }
+          
+          // Ensure Smart Collection exists
+          if (product.category) {
+            await fetch('/api/shopify/collection', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                shop: shopDomain,
+                accessToken: credentials.access_token,
+                productType: product.category
+              })
+            })
+          }
+          
           success++
         }
       } catch (err) {
