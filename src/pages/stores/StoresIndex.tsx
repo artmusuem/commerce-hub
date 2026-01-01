@@ -161,13 +161,7 @@ export function StoresIndex() {
           const existingShopifyId = product.platform_ids?.shopify
           const isUpdate = !!existingShopifyId
           
-          // On update, don't generate new variants (would cause 422)
-          const shopifyProduct = transformToShopify(
-            product, 
-            targetStoreData.store_name || 'Commerce Hub',
-            undefined,
-            { generateVariants: !isUpdate }
-          )
+          const shopifyProduct = transformToShopify(product, targetStoreData.store_name || 'Commerce Hub')
           
           const response = await fetch('/api/shopify/products', {
             method: 'POST',
