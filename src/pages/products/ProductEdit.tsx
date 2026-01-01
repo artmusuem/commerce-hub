@@ -455,6 +455,29 @@ export function ProductEdit() {
         const shopifyExternalId = platformIds.shopify
         const isUpdate = !!shopifyExternalId
         
+        // ========== PRE-PUSH STATE DETECTION ==========
+        // Identify what IDs exist before pushing
+        const existingVariants = shopifyVariants || []
+        const variantsWithShopifyIds = existingVariants.filter(v => v.id && v.id > 100000)
+        const variantsWithoutShopifyIds = existingVariants.filter(v => !v.id || v.id <= 100000)
+        
+        if (!isUpdate) {
+          console.log('🆕 SHOPIFY CREATE MODE: No Shopify product ID in database')
+          console.log(`   - Will push ${existingVariants.length} variants WITHOUT Shopify IDs`)
+          console.log('   - After create: Will save returned Shopify IDs to database')
+        } else if (variantsWithoutShopifyIds.length > 0) {
+          console.log('⚠️ SHOPIFY MIXED MODE: Product exists but some variants are new')
+          console.log(`   - Product ID: ${shopifyExternalId}`)
+          console.log(`   - Variants with Shopify IDs: ${variantsWithShopifyIds.length}`)
+          console.log(`   - Variants WITHOUT Shopify IDs: ${variantsWithoutShopifyIds.length}`)
+          console.log('   - After push: Will save new variant IDs to database')
+        } else {
+          console.log('✅ SHOPIFY UPDATE MODE: All IDs present')
+          console.log(`   - Product ID: ${shopifyExternalId}`)
+          console.log(`   - All ${existingVariants.length} variants have Shopify IDs`)
+        }
+        // ================================================
+        
         const response = await fetch('/api/shopify/products', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -476,19 +499,76 @@ export function ProductEdit() {
         const result = await response.json()
         const productData = result.product
         
-        // Save Shopify product ID to platformIds after create OR recreate
-        // recreated = true when product was deleted on Shopify and we fell back to CREATE
-        if ((!isUpdate || result.recreated) && productData?.id) {
-          const newPlatformIds = { ...platformIds, shopify: String(productData.id) }
-          await supabase
-            .from('products')
-            .update({ platform_ids: newPlatformIds })
-            .eq('id', id)
-          setPlatformIds(newPlatformIds)
-          if (result.recreated) {
-            console.log(`Product was deleted on Shopify, recreated with new ID: ${productData.id}`)
+        // ========== POST-PUSH: SAVE ALL SHOPIFY IDs ==========
+        // Save product ID and variant IDs back to database
+        if (productData?.id) {
+          const updates: Record<string, unknown> = {}
+          
+          // Always update platform_ids with product ID (for create, recreate, or just to confirm)
+          if (!isUpdate || result.recreated) {
+            const newPlatformIds = { ...platformIds, shopify: String(productData.id) }
+            updates.platform_ids = newPlatformIds
+            setPlatformIds(newPlatformIds)
+            console.log(`💾 Saved Shopify product ID: ${productData.id}`)
+            if (result.recreated) {
+              console.log(`   (Product was deleted on Shopify, recreated with new ID)`)
+            }
+          }
+          
+          // Save variant IDs back to database
+          // Match returned variants to our variants by SKU or option combination
+          if (productData.variants && productData.variants.length > 0) {
+            const returnedVariants = productData.variants
+            
+            // Update our local variants with Shopify's real IDs
+            const updatedVariants = existingVariants.map(localVariant => {
+              // Find matching Shopify variant by SKU first, then by options
+              const matchedShopifyVariant = returnedVariants.find((sv: { sku?: string; option1?: string; option2?: string; option3?: string }) => 
+                (sv.sku && localVariant.sku && sv.sku === localVariant.sku) ||
+                (sv.option1 === localVariant.option1 && sv.option2 === localVariant.option2 && sv.option3 === localVariant.option3)
+              )
+              
+              if (matchedShopifyVariant) {
+                return {
+                  ...localVariant,
+                  id: matchedShopifyVariant.id,  // Real Shopify ID
+                  inventory_item_id: matchedShopifyVariant.inventory_item_id
+                }
+              }
+              return localVariant
+            })
+            
+            // Check if any variants were updated
+            const variantsUpdated = updatedVariants.some((v, i) => v.id !== existingVariants[i]?.id)
+            if (variantsUpdated) {
+              updates.variants = updatedVariants
+              setShopifyVariants(updatedVariants)
+              console.log(`💾 Saved ${returnedVariants.length} Shopify variant IDs to database`)
+            }
+          }
+          
+          // Save options with Shopify IDs too
+          if (productData.options && productData.options.length > 0) {
+            updates.options = productData.options
+            setShopifyOptions(productData.options)
+            console.log(`💾 Saved ${productData.options.length} Shopify option IDs to database`)
+          }
+          
+          // Commit all updates to database in one call
+          if (Object.keys(updates).length > 0) {
+            const { error: updateError } = await supabase
+              .from('products')
+              .update(updates)
+              .eq('id', id)
+            
+            if (updateError) {
+              console.error('Failed to save Shopify IDs to database:', updateError)
+            } else {
+              console.log('✅ All Shopify IDs saved to database')
+            }
           }
         }
+        // =====================================================
 
         // Set Shopify taxonomy category via GraphQL
         // This properly sets the category (not just a suggestion)
