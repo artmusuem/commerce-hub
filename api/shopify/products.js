@@ -22,7 +22,7 @@ export default async function handler(req, res) {
   }
 
   const cleanDomain = shop.replace(/^https?:\/\//, '').replace(/\/$/, '')
-  const baseUrl = `https://${cleanDomain}/admin/api/2024-01`
+  const baseUrl = `https://${cleanDomain}/admin/api/2024-10`
 
   try {
     if (action === 'fetch') {
