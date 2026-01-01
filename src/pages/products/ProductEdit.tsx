@@ -507,6 +507,9 @@ export function ProductEdit() {
                 categoryMessage = ` | Category: ${taxonomyData.categorySet.name}`
                 console.log(`Set Shopify category: ${taxonomyData.categorySet.fullName}`)
               }
+            } else {
+              const errorData = await taxonomyResponse.json()
+              console.warn('Taxonomy API error:', errorData)
             }
           } catch (err) {
             console.warn('Failed to set taxonomy category:', err)
