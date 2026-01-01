@@ -449,11 +449,18 @@ export function ProductEdit() {
         }
 
         const shopDomain = store.store_url?.replace(/^https?:\/\//, '').replace(/\/$/, '') || ''
-        const shopifyProduct = transformToShopify(product, store.store_name || 'Commerce Hub', shopifyTags)
         
         // Check platformIds.shopify for existing Shopify product ID
         const shopifyExternalId = platformIds.shopify
         const isUpdate = !!shopifyExternalId
+        
+        // On update, don't generate new variants (would cause 422 - Shopify needs variant IDs)
+        const shopifyProduct = transformToShopify(
+          product, 
+          store.store_name || 'Commerce Hub', 
+          shopifyTags,
+          { generateVariants: !isUpdate }
+        )
         
         const response = await fetch('/api/shopify/products', {
           method: 'POST',
