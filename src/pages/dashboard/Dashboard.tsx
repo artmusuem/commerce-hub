@@ -239,6 +239,103 @@ export function Dashboard() {
     loadData()
   }
 
+  // Sync taxonomy for all Shopify products
+  async function syncShopifyTaxonomy() {
+    const shopifyStore = stores.find(s => s.platform === 'shopify')
+    if (!shopifyStore) {
+      setSyncResult({ message: 'Shopify not connected', type: 'error' })
+      return
+    }
+
+    // Get Shopify store credentials
+    const { data: storeData } = await supabase
+      .from('stores')
+      .select('*')
+      .eq('id', shopifyStore.id)
+      .single()
+
+    if (!storeData?.api_credentials) {
+      setSyncResult({ message: 'Shopify credentials not found', type: 'error' })
+      return
+    }
+
+    const credentials = storeData.api_credentials as { access_token: string }
+    const shopDomain = storeData.store_url?.replace(/^https?:\/\//, '').replace(/\/$/, '') || ''
+
+    // Get all products with Shopify IDs
+    const { data: products } = await supabase
+      .from('products')
+      .select('id, title, category, platform_ids')
+      .not('platform_ids->shopify', 'is', null)
+
+    if (!products || products.length === 0) {
+      setSyncResult({ message: 'No Shopify products to sync', type: 'error' })
+      return
+    }
+
+    setSyncing('taxonomy')
+    setSyncProgress({ current: 0, total: products.length })
+    setSyncResult(null)
+
+    let success = 0
+    let failed = 0
+
+    for (let i = 0; i < products.length; i++) {
+      const product = products[i]
+      const shopifyId = product.platform_ids?.shopify
+      
+      setSyncProgress({ current: i + 1, total: products.length })
+
+      if (!shopifyId || !product.category) {
+        failed++
+        continue
+      }
+
+      try {
+        // Set taxonomy
+        const taxonomyResponse = await fetch('/api/shopify/taxonomy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            shop: shopDomain,
+            accessToken: credentials.access_token,
+            productId: shopifyId,
+            categoryName: product.category
+          })
+        })
+
+        if (taxonomyResponse.ok) {
+          success++
+        } else {
+          console.warn('Taxonomy failed for', product.title)
+          failed++
+        }
+
+        // Ensure collection exists
+        await fetch('/api/shopify/collection', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            shop: shopDomain,
+            accessToken: credentials.access_token,
+            productType: product.category
+          })
+        })
+      } catch (err) {
+        console.error('Sync failed for', product.title, err)
+        failed++
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+
+    setSyncing(null)
+    setSyncResult({
+      message: `Taxonomy synced: ${success} updated${failed > 0 ? `, ${failed} failed` : ''}`,
+      type: failed === 0 ? 'success' : 'error'
+    })
+  }
+
   const shopifyConnected = stores.some(s => s.platform === 'shopify')
   const wooConnected = stores.some(s => s.platform === 'woocommerce')
 
@@ -350,6 +447,17 @@ export function Dashboard() {
                         >
                           ← Pull
                         </Link>
+                      )}
+                      {store.platform === 'shopify' && (
+                        <button
+                          onClick={syncShopifyTaxonomy}
+                          disabled={syncing !== null}
+                          className="px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded disabled:opacity-50"
+                        >
+                          {syncing === 'taxonomy' 
+                            ? `${syncProgress.current}/${syncProgress.total}` 
+                            : '⚡ Fix Categories'}
+                        </button>
                       )}
                       {store.platform === 'woocommerce' && (
                         <Link
