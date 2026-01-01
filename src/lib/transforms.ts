@@ -493,8 +493,9 @@ export function transformFromGalleryStore(
   // Normalize artist name (handle "Last, First" format)
   const artistNormalized = normalizeArtistName(artwork.artist)
   
-  // Generate SKU from smithsonian_id
-  const sku = `GS-${artwork.smithsonian_id.replace(/[^a-zA-Z0-9]/g, '').slice(0, 12)}`
+  // Generate SKU from smithsonian_id - use LAST 12 chars since that's where uniqueness is
+  const cleanId = artwork.smithsonian_id.replace(/[^a-zA-Z0-9]/g, '')
+  const sku = `GS-${cleanId.slice(-12)}`
   
   // Proxy Smithsonian images through Cloudinary for reliable loading
   const imageUrl = proxySmithsonianImage(artwork.image)
