@@ -134,7 +134,24 @@ export function Dashboard() {
         } else if (targetPlatform === 'shopify') {
           const credentials = targetStoreData.api_credentials as { access_token: string }
           const shopDomain = targetStoreData.store_url?.replace(/^https?:\/\//, '').replace(/\/$/, '') || ''
-          const shopifyProduct = transformToShopify(product, targetStoreData.store_name || 'Commerce Hub')
+          
+          // Extract tags from product (array or generate from artist/category)
+          let shopifyTags = ''
+          if (product.tags && Array.isArray(product.tags)) {
+            shopifyTags = product.tags.join(', ')
+          } else if (product.artist || product.category) {
+            const tagParts = []
+            if (product.artist) tagParts.push(product.artist.toLowerCase().replace(/\s+/g, '-'))
+            if (product.category) tagParts.push(product.category.toLowerCase())
+            tagParts.push('art', 'print')
+            shopifyTags = tagParts.join(', ')
+          }
+          
+          const shopifyProduct = transformToShopify(product, targetStoreData.store_name || 'Commerce Hub', shopifyTags)
+          
+          // Check if product already exists on Shopify (via platform_ids)
+          const existingShopifyId = product.platform_ids?.shopify
+          const isUpdate = !!existingShopifyId
           
           const response = await fetch('/api/shopify/products', {
             method: 'POST',
@@ -142,12 +159,61 @@ export function Dashboard() {
             body: JSON.stringify({
               shop: shopDomain,
               accessToken: credentials.access_token,
-              action: 'create',
+              action: isUpdate ? 'update' : 'create',
+              productId: isUpdate ? existingShopifyId : undefined,
               product: shopifyProduct
             })
           })
 
           if (!response.ok) throw new Error('Push failed')
+          
+          const result = await response.json()
+          const productData = result.product
+          
+          // Save Shopify ID to platform_ids
+          if (productData?.id && (!isUpdate || result.recreated)) {
+            const newPlatformIds = { ...(product.platform_ids || {}), shopify: String(productData.id) }
+            await supabase
+              .from('products')
+              .update({ platform_ids: newPlatformIds })
+              .eq('id', product.id)
+          }
+          
+          // Set taxonomy category via GraphQL API
+          if (product.category && productData?.id) {
+            try {
+              await fetch('/api/shopify/taxonomy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  shop: shopDomain,
+                  accessToken: credentials.access_token,
+                  productId: productData.id,
+                  categoryName: product.category
+                })
+              })
+            } catch (err) {
+              console.warn('Taxonomy failed for', product.title, err)
+            }
+          }
+          
+          // Ensure Smart Collection exists for product type
+          if (product.category) {
+            try {
+              await fetch('/api/shopify/collection', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  shop: shopDomain,
+                  accessToken: credentials.access_token,
+                  productType: product.category
+                })
+              })
+            } catch (err) {
+              console.warn('Collection failed for', product.title, err)
+            }
+          }
+          
           success++
         }
       } catch (err) {
