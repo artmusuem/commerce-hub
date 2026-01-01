@@ -162,6 +162,12 @@ export function StoresIndex() {
           const existingShopifyId = product.platform_ids?.shopify
           const isUpdate = !!existingShopifyId
           
+          // On update, strip variants/options to avoid 422 (Shopify needs variant IDs)
+          if (isUpdate) {
+            delete shopifyProduct.variants
+            delete shopifyProduct.options
+          }
+          
           const response = await fetch('/api/shopify/products', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
