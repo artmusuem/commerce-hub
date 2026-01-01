@@ -2,6 +2,26 @@
 // Converts Commerce Hub products to external platform formats
 
 import type { WooCommercePushPayload } from './woocommerce'
+import {
+  generateShopifyVariants,
+  generateWooCommerceVariants,
+  generateCommerceHubVariants,
+  DEFAULT_TEMPLATE,
+  STANDARD_TEMPLATE,
+  PREMIUM_TEMPLATE,
+  MINIMAL_TEMPLATE,
+  type PricingTemplate,
+} from './pricing-templates'
+
+// Re-export pricing template utilities for convenience
+export { 
+  generateCommerceHubVariants,
+  DEFAULT_TEMPLATE,
+  STANDARD_TEMPLATE,
+  PREMIUM_TEMPLATE,
+  MINIMAL_TEMPLATE,
+}
+export type { PricingTemplate }
 
 /**
  * Commerce Hub product structure (from Supabase)
@@ -29,24 +49,26 @@ export interface CommerceHubProduct {
   }[]
   // Shopify variants (JSONB from database)
   variants?: {
-    id: number
-    title: string
+    id?: number
+    title?: string
     price: string
     compare_at_price: string | null
     sku: string
-    barcode: string | null
-    position: number
+    barcode?: string | null
+    position?: number
     inventory_quantity: number
     inventory_management: string | null
     option1: string | null
     option2: string | null
-    option3: string | null
+    option3?: string | null
+    weight?: number
+    weight_unit?: string
   }[]
   // Shopify options (Color, Size, etc.)
   options?: {
-    id: number
+    id?: number
     name: string
-    position: number
+    position?: number
     values: string[]
   }[]
   // Digital download fields
@@ -78,6 +100,9 @@ export interface ShopifyPushPayload {
     option1?: string | null
     option2?: string | null
     option3?: string | null
+    requires_shipping?: boolean
+    weight?: number
+    weight_unit?: string
   }[]
   options?: {
     id?: number
@@ -93,14 +118,28 @@ export interface ShopifyPushPayload {
 export type WooCategoryMap = Record<string, number>
 
 /**
+ * Transform options for variant generation
+ */
+export interface TransformOptions {
+  /** Generate variants if product has none (default: true) */
+  generateVariants?: boolean
+  /** Pricing template to use (default: STANDARD_TEMPLATE) */
+  pricingTemplate?: PricingTemplate
+}
+
+/**
  * Transform Commerce Hub product to WooCommerce format
  * @param product - Commerce Hub product from Supabase
  * @param categoryMap - Optional map of category names to WooCommerce IDs
+ * @param options - Transform options for variant generation
  */
 export function transformToWooCommerce(
   product: CommerceHubProduct,
-  categoryMap?: WooCategoryMap
+  categoryMap?: WooCategoryMap,
+  options: TransformOptions = {}
 ): WooCommercePushPayload {
+  const { generateVariants: shouldGenerateVariants = true, pricingTemplate = STANDARD_TEMPLATE } = options
+  
   // Map Commerce Hub status to WooCommerce status
   const statusMap: Record<string, string> = {
     active: 'publish',
@@ -108,16 +147,43 @@ export function transformToWooCommerce(
     archived: 'private'
   }
 
+  // Check if we need to generate variants
+  const hasVariants = product.variants && product.variants.length > 0
+  const hasAttributes = product.attributes && product.attributes.length > 0
+  const isVariable = shouldGenerateVariants && !hasVariants && !hasAttributes && !product.is_digital
+
   const payload: WooCommercePushPayload = {
     name: product.title,
-    // Don't send type - let WooCommerce keep original on update, default to simple on create
+    type: isVariable ? 'variable' : (product.is_digital ? 'simple' : undefined),
     status: statusMap[product.status] || 'draft',
-    regular_price: product.price.toFixed(2),
     description: product.description || '',
     short_description: product.artist 
       ? `By ${product.artist}` 
       : undefined,
     sku: product.sku || `CH-${product.id.slice(0, 8)}`,
+    regular_price: isVariable ? '' : product.price.toFixed(2),
+  }
+
+  // Generate attributes for variable products
+  if (isVariable) {
+    const baseSku = product.sku || `CH-${product.id.slice(0, 8)}`
+    const { attributes } = generateWooCommerceVariants(baseSku, pricingTemplate)
+    payload.attributes = attributes
+    // Note: Variations must be created via separate API calls after product creation
+    // We'll store the variation data for the API to use
+    payload._pendingVariations = generateWooCommerceVariants(baseSku, pricingTemplate).variations
+  }
+
+  // Pass through existing attributes if present
+  if (hasAttributes && product.attributes) {
+    payload.attributes = product.attributes.map(attr => ({
+      id: attr.id,
+      name: attr.name,
+      position: attr.position ?? 0,
+      visible: attr.visible ?? true,
+      variation: attr.variation ?? false,
+      options: attr.options
+    }))
   }
 
   // Add image if present
@@ -132,13 +198,9 @@ export function transformToWooCommerce(
     
     // Use Cloudinary fetch proxy for URLs that WooCommerce can't process directly
     if (!hasValidExtension && url.includes('ids.si.edu')) {
-      // Cloudinary fetch: proxies any URL and serves with proper headers
-      // URL must be encoded for Cloudinary to fetch it correctly
-      // Append .jpg so WooCommerce accepts the URL (it checks for file extension)
       imageUrl = `https://res.cloudinary.com/dh4qwuvuo/image/fetch/${encodeURIComponent(product.image_url)}.jpg`
     }
     
-    // Only add image if we have a valid URL (original or proxied)
     if (hasValidExtension || url.includes('ids.si.edu')) {
       payload.images = [{
         src: imageUrl,
@@ -155,21 +217,8 @@ export function transformToWooCommerce(
     }
   }
 
-  // Pass through attributes if present
-  if (product.attributes && product.attributes.length > 0) {
-    payload.attributes = product.attributes.map(attr => ({
-      id: attr.id,
-      name: attr.name,
-      position: attr.position ?? 0,
-      visible: attr.visible ?? true,
-      variation: attr.variation ?? false,
-      options: attr.options
-    }))
-  }
-
   // Handle digital downloads
   if (product.is_digital && product.digital_file_url) {
-    // Digital products must be simple type (not variable)
     payload.type = 'simple'
     payload.downloadable = true
     payload.virtual = true
@@ -186,12 +235,19 @@ export function transformToWooCommerce(
 
 /**
  * Transform Commerce Hub product to Shopify format
+ * @param product - Commerce Hub product from Supabase
+ * @param vendorName - Default vendor name if not set on product
+ * @param shopifyTags - Optional tags string
+ * @param options - Transform options for variant generation
  */
 export function transformToShopify(
   product: CommerceHubProduct,
   vendorName: string = 'Commerce Hub',
-  shopifyTags?: string
+  shopifyTags?: string,
+  options: TransformOptions = {}
 ): ShopifyPushPayload {
+  const { generateVariants: shouldGenerateVariants = true, pricingTemplate = STANDARD_TEMPLATE } = options
+  
   // Map Commerce Hub status to Shopify status
   const statusMap: Record<string, 'active' | 'draft' | 'archived'> = {
     active: 'active',
@@ -213,19 +269,51 @@ export function transformToShopify(
     bodyHtml += `<p><strong>📥 Digital Download:</strong> You will receive a download link after purchase.</p>`
   }
 
-  // Build tags - include 'digital-download' tag for digital products
+  // Build tags - fallback to artist-based tags if none provided
   let tags = shopifyTags || ''
+  if (!tags && product.artist) {
+    tags = `art, print, ${product.artist.toLowerCase()}`
+  } else if (!tags) {
+    tags = 'art, print'
+  }
   if (product.is_digital && !tags.toLowerCase().includes('digital')) {
     tags = tags ? `${tags}, digital-download` : 'digital-download'
   }
 
-  // Build variants - preserve existing variants if present, otherwise create default
+  // Determine if we should generate variants
+  const hasExistingVariants = product.variants && product.variants.length > 0
+  const hasExistingOptions = product.options && product.options.length > 0
+  const shouldGenerate = shouldGenerateVariants && !hasExistingVariants && !hasExistingOptions && !product.is_digital
+
   let variants: ShopifyPushPayload['variants']
-  
-  if (product.variants && product.variants.length > 0) {
+  let productOptions: ShopifyPushPayload['options'] | undefined
+
+  if (shouldGenerate) {
+    // Generate new variants from pricing template
+    const baseSku = product.sku || `CH-${product.id.slice(0, 8)}`
+    const generated = generateShopifyVariants(baseSku, pricingTemplate)
+    
+    variants = generated.variants.map(v => ({
+      price: v.price,
+      compare_at_price: v.compare_at_price,
+      sku: v.sku,
+      inventory_quantity: v.inventory_quantity,
+      inventory_management: v.inventory_management,
+      option1: v.option1,
+      option2: v.option2,
+      requires_shipping: v.requires_shipping,
+      weight: v.weight,
+      weight_unit: v.weight_unit,
+    }))
+    
+    productOptions = generated.options.map(opt => ({
+      name: opt.name,
+      values: opt.values,
+    }))
+  } else if (hasExistingVariants && product.variants) {
     // Pass through existing variants with their IDs (critical for updates!)
     variants = product.variants.map(v => ({
-      id: v.id,  // Include ID so Shopify updates existing variants instead of replacing
+      id: v.id,
       price: v.price,
       compare_at_price: v.compare_at_price,
       sku: v.sku || undefined,
@@ -236,12 +324,20 @@ export function transformToShopify(
       option2: v.option2,
       option3: v.option3
     }))
+    
+    // Also pass through existing options
+    if (hasExistingOptions && product.options) {
+      productOptions = product.options.map(opt => ({
+        id: opt.id,
+        name: opt.name,
+        values: opt.values
+      }))
+    }
   } else {
-    // Default single variant for simple products
+    // Default single variant for simple products or digital downloads
     variants = [{
       price: product.price.toFixed(2),
       sku: product.sku || `CH-${product.id.slice(0, 8)}`,
-      // Digital products don't need inventory tracking
       inventory_quantity: product.is_digital ? 999 : 100,
       inventory_management: product.is_digital ? null : 'shopify'
     }]
@@ -250,20 +346,16 @@ export function transformToShopify(
   const payload: ShopifyPushPayload = {
     title: product.title,
     body_html: bodyHtml,
-    vendor: product.vendor || vendorName,  // Use product's vendor if set
+    vendor: product.vendor || vendorName,
     product_type: product.category || 'Art Print',
     tags,
     status: statusMap[product.status] || 'draft',
     variants
   }
 
-  // Add options if present (Color, Size, etc.)
-  if (product.options && product.options.length > 0) {
-    payload.options = product.options.map(opt => ({
-      id: opt.id,
-      name: opt.name,
-      values: opt.values
-    }))
+  // Add options if we have them (either generated or existing)
+  if (productOptions && productOptions.length > 0) {
+    payload.options = productOptions
   }
 
   // Add image if present
@@ -282,25 +374,33 @@ export function transformToShopify(
  */
 export function transformBatchToWooCommerce(
   products: CommerceHubProduct[],
-  categoryMap?: WooCategoryMap
+  categoryMap?: WooCategoryMap,
+  options?: TransformOptions
 ): WooCommercePushPayload[] {
-  return products.map(p => transformToWooCommerce(p, categoryMap))
+  return products.map(p => transformToWooCommerce(p, categoryMap, options))
 }
 
 export function transformBatchToShopify(
   products: CommerceHubProduct[],
-  vendorName?: string
+  vendorName?: string,
+  shopifyTags?: string,
+  options?: TransformOptions
 ): ShopifyPushPayload[] {
-  return products.map(p => transformToShopify(p, vendorName))
+  return products.map(p => transformToShopify(p, vendorName, shopifyTags, options))
 }
 
 /**
  * Escape HTML for safe embedding
  */
 function escapeHtml(text: string): string {
-  const div = document.createElement('div')
-  div.textContent = text
-  return div.innerHTML
+  const map: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  }
+  return text.replace(/[&<>"']/g, char => map[char])
 }
 
 /**
@@ -351,12 +451,10 @@ export interface GalleryStoreArtwork {
   dimensions: string
   credit_line: string
   created_date: string
+  // Optional pricing override
+  pricing_template?: 'standard' | 'premium' | 'minimal'
+  tags?: string[]
 }
-
-/**
- * Default price for art prints (in dollars)
- */
-const DEFAULT_ART_PRINT_PRICE = 49.99
 
 /**
  * Cloudinary cloud name for image proxying
@@ -365,20 +463,39 @@ const CLOUDINARY_CLOUD = 'dh4qwuvuo'
 
 /**
  * Transform Gallery Store artwork to Commerce Hub product format
+ * Now includes variant generation!
  * 
  * @param artwork - Gallery Store artwork from Smithsonian JSON
  * @param storeId - Store ID for the Gallery Store in Supabase
+ * @param options - Transform options for variant generation
  * @returns Commerce Hub product ready for Supabase insert
  */
 export function transformFromGalleryStore(
   artwork: GalleryStoreArtwork,
-  storeId: string
-): Omit<CommerceHubProduct, 'id'> {
+  storeId: string,
+  options: TransformOptions = {}
+): Omit<CommerceHubProduct, 'id'> & { options?: CommerceHubProduct['options'], variants?: CommerceHubProduct['variants'] } {
+  const { generateVariants: shouldGenerateVariants = true } = options
+  
+  // Select pricing template based on artwork or use default
+  let pricingTemplate: PricingTemplate
+  switch (artwork.pricing_template) {
+    case 'premium':
+      pricingTemplate = PREMIUM_TEMPLATE
+      break
+    case 'minimal':
+      pricingTemplate = MINIMAL_TEMPLATE
+      break
+    default:
+      pricingTemplate = options.pricingTemplate || STANDARD_TEMPLATE
+  }
+  
   // Normalize artist name (handle "Last, First" format)
   const artistNormalized = normalizeArtistName(artwork.artist)
   
-  // Generate SKU from smithsonian_id
-  const sku = `GS-${artwork.smithsonian_id.replace(/[^a-zA-Z0-9]/g, '').slice(0, 12)}`
+  // Generate SKU from smithsonian_id - use LAST 12 chars since that's where uniqueness is
+  const cleanId = artwork.smithsonian_id.replace(/[^a-zA-Z0-9]/g, '')
+  const sku = `GS-${cleanId.slice(-12)}`
   
   // Proxy Smithsonian images through Cloudinary for reliable loading
   const imageUrl = proxySmithsonianImage(artwork.image)
@@ -394,11 +511,31 @@ export function transformFromGalleryStore(
   if (artwork.credit_line) {
     description += `\n\n${artwork.credit_line}`
   }
+
+  // Generate variants if enabled
+  let productOptions: CommerceHubProduct['options'] | undefined
+  let productVariants: CommerceHubProduct['variants'] | undefined
+  let basePrice = 49.99  // Default price for simple products
+  let productType: 'simple' | 'variable' = 'simple'
+
+  if (shouldGenerateVariants) {
+    const generated = generateCommerceHubVariants(sku, pricingTemplate)
+    productOptions = generated.options
+    productVariants = generated.variants.map((v, index) => ({
+      ...v,
+      id: index + 1,  // Temporary ID, will be replaced by Shopify
+      position: index + 1,
+      barcode: null,
+      inventory_management: null,
+    }))
+    basePrice = generated.lowestPrice  // Use lowest variant price as base
+    productType = 'variable'
+  }
   
   return {
     title: artwork.title,
     description: description.trim(),
-    price: DEFAULT_ART_PRINT_PRICE,
+    price: basePrice,
     artist: artistNormalized,
     vendor: artistNormalized,
     category: artwork.object_type || 'Art Print',
@@ -406,11 +543,10 @@ export function transformFromGalleryStore(
     sku: sku,
     status: 'active',
     store_id: storeId,
-    product_type: 'simple',
-    // Store original Smithsonian data for reference
+    product_type: productType,
     attributes: undefined,
-    variants: undefined,
-    options: undefined,
+    options: productOptions,
+    variants: productVariants,
   }
 }
 
@@ -419,9 +555,10 @@ export function transformFromGalleryStore(
  */
 export function transformBatchFromGalleryStore(
   artworks: GalleryStoreArtwork[],
-  storeId: string
-): Omit<CommerceHubProduct, 'id'>[] {
-  return artworks.map(a => transformFromGalleryStore(a, storeId))
+  storeId: string,
+  options?: TransformOptions
+): (Omit<CommerceHubProduct, 'id'> & { options?: CommerceHubProduct['options'], variants?: CommerceHubProduct['variants'] })[] {
+  return artworks.map(a => transformFromGalleryStore(a, storeId, options))
 }
 
 /**
@@ -450,7 +587,6 @@ function proxySmithsonianImage(imageUrl: string): string {
   
   // Only proxy Smithsonian URLs
   if (imageUrl.includes('ids.si.edu')) {
-    // Cloudinary fetch URL with .jpg extension for compatibility
     return `https://res.cloudinary.com/${CLOUDINARY_CLOUD}/image/fetch/${encodeURIComponent(imageUrl)}.jpg`
   }
   
