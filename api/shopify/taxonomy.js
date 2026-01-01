@@ -137,9 +137,10 @@ export default async function handler(req, res) {
     console.log(`Found taxonomy category: ${bestMatch.fullName} (${bestMatch.id})`)
 
     // Step 2: Update product with the category via GraphQL
+    // Using NEW ProductUpdateInput (not deprecated ProductInput)
     const updateMutation = `
-      mutation productUpdate($input: ProductInput!) {
-        productUpdate(input: $input) {
+      mutation productUpdate($product: ProductUpdateInput!) {
+        productUpdate(product: $product) {
           product {
             id
             category {
@@ -156,6 +157,8 @@ export default async function handler(req, res) {
       }
     `
 
+    console.log(`Setting category ${bestMatch.id} on product ${productId}`)
+
     const updateResponse = await fetch(graphqlUrl, {
       method: 'POST',
       headers: {
@@ -165,7 +168,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         query: updateMutation,
         variables: {
-          input: {
+          product: {
             id: `gid://shopify/Product/${productId}`,
             category: bestMatch.id
           }
