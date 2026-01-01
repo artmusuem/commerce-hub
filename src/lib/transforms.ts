@@ -11,8 +11,6 @@ import {
   PREMIUM_TEMPLATE,
   MINIMAL_TEMPLATE,
   type PricingTemplate,
-  type ShopifyVariant as GeneratedShopifyVariant,
-  type ShopifyOption as GeneratedShopifyOption,
 } from './pricing-templates'
 
 // Re-export pricing template utilities for convenience
@@ -163,12 +161,7 @@ export function transformToWooCommerce(
       ? `By ${product.artist}` 
       : undefined,
     sku: product.sku || `CH-${product.id.slice(0, 8)}`,
-  }
-
-  // For variable products, don't set regular_price (it's set per variation)
-  // For simple products, set the price
-  if (!isVariable) {
-    payload.regular_price = product.price.toFixed(2)
+    regular_price: isVariable ? '' : product.price.toFixed(2),
   }
 
   // Generate attributes for variable products
