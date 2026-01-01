@@ -1,33 +1,14 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-
-interface WooProduct {
-  id: number
-  name: string
-  slug: string
-  sku: string
-  description: string
-  short_description: string
-  price: string
-  regular_price: string
-  images: { src: string }[]
-  categories: { name: string }[]
-  status: string
-  type: string
-  attributes: {
-    id: number
-    name: string
-    position: number
-    visible: boolean
-    variation: boolean
-    options: string[]
-  }[]
-}
+import { transformFromWooCommerce, type WooCommerceApiProduct } from '../../lib/transforms'
 
 interface WooCategory {
   id: number
   name: string
+  slug: string
+  parent: number
+}
   slug: string
   parent: number
 }
@@ -40,7 +21,7 @@ export function WooCommerceConnect() {
   const [consumerSecret, setConsumerSecret] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [products, setProducts] = useState<WooProduct[]>([])
+  const [products, setProducts] = useState<WooCommerceApiProduct[]>([])
   const [categories, setCategories] = useState<WooCategory[]>([])
   const [imported, setImported] = useState(0)
 
@@ -53,7 +34,7 @@ export function WooCommerceConnect() {
       const baseUrl = siteUrl.replace(/\/$/, '')
       
       // Fetch ALL products with pagination
-      const allProducts: WooProduct[] = []
+      const allProducts: WooCommerceApiProduct[] = []
       let page = 1
       let hasMore = true
       
@@ -68,7 +49,7 @@ export function WooCommerceConnect() {
           throw new Error(`Failed to connect: ${productsRes.status}`)
         }
 
-        const productsData: WooProduct[] = await productsRes.json()
+        const productsData: WooCommerceApiProduct[] = await productsRes.json()
         
         if (productsData.length === 0) {
           hasMore = false
@@ -185,28 +166,15 @@ export function WooCommerceConnect() {
         }
       }
 
-      // Transform WooCommerce products to our format
+      // Transform WooCommerce products to Commerce Hub format using proper transform function
       const transformedProducts = products
         .filter(p => p.name && p.status === 'publish')
         .map(p => {
-          const base: Record<string, unknown> = {
-            user_id: user.id,
-            title: p.name,
-            description: stripHtml(p.description || p.short_description || ''),
-            price: parseFloat(p.price) || parseFloat(p.regular_price) || 0,
-            category: p.categories?.[0]?.name || 'Uncategorized',
-            image_url: p.images?.[0]?.src || null,
-            status: 'active' as const,
-            external_id: String(p.id),  // WooCommerce product ID for sync
-            sku: p.sku || null,
-            attributes: p.attributes || [],  // WooCommerce attributes array
-            product_type: p.type || 'simple',  // simple, variable, grouped, external
+          const transformed = transformFromWooCommerce(p, storeId || '')
+          return {
+            ...transformed,
+            user_id: user.id,  // Add auth-specific field
           }
-          // Only add store_id if we have one (migration may not have run)
-          if (storeId) {
-            base.store_id = storeId
-          }
-          return base
         })
 
       // Batch insert products and get their IDs back
@@ -217,9 +185,9 @@ export function WooCommerceConnect() {
 
       if (insertError) {
         // If optional columns don't exist, retry without them
-        if (insertError.message.includes('store_id') || insertError.message.includes('external_id') || insertError.message.includes('attributes') || insertError.message.includes('sku') || insertError.message.includes('product_type')) {
+        if (insertError.message.includes('store_id') || insertError.message.includes('external_id') || insertError.message.includes('attributes') || insertError.message.includes('sku') || insertError.message.includes('product_type') || insertError.message.includes('tags')) {
           const productsWithoutOptional = transformedProducts.map(p => {
-            const { store_id, external_id, attributes, sku, product_type, ...rest } = p
+            const { store_id, external_id, attributes, sku, product_type, tags, ...rest } = p
             return rest
           })
           const { error: retryError } = await supabase
