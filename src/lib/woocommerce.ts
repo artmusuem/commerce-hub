@@ -173,7 +173,7 @@ export async function createWooCommerceCategory(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       credentials,
-      name: categoryName
+      categoryName
     })
   })
 
