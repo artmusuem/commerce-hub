@@ -485,6 +485,34 @@ export function ProductEdit() {
           setPlatformIds(newPlatformIds)
         }
 
+        // Set Shopify taxonomy category via GraphQL
+        // This properly sets the category (not just a suggestion)
+        let categoryMessage = ''
+        if (category && productData?.id) {
+          try {
+            const taxonomyResponse = await fetch('/api/shopify/taxonomy', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                shop: shopDomain,
+                accessToken: credentials.access_token,
+                productId: productData.id,
+                categoryName: category
+              })
+            })
+            
+            if (taxonomyResponse.ok) {
+              const taxonomyData = await taxonomyResponse.json()
+              if (taxonomyData.success && taxonomyData.categorySet) {
+                categoryMessage = ` | Category: ${taxonomyData.categorySet.name}`
+                console.log(`Set Shopify category: ${taxonomyData.categorySet.fullName}`)
+              }
+            }
+          } catch (err) {
+            console.warn('Failed to set taxonomy category:', err)
+          }
+        }
+
         // Ensure Smart Collection exists for this product type
         // This auto-populates the collection with products of matching type
         let collectionMessage = ''
@@ -515,8 +543,8 @@ export function ProductEdit() {
         setPushResult({
           success: true,
           message: isUpdate 
-            ? `Product updated in Shopify! ID: ${productData?.id}${collectionMessage}`
-            : `Product created in Shopify! ID: ${productData?.id}${collectionMessage}`
+            ? `Product updated in Shopify! ID: ${productData?.id}${categoryMessage}${collectionMessage}`
+            : `Product created in Shopify! ID: ${productData?.id}${categoryMessage}${collectionMessage}`
         })
       } else if (store.platform === 'gallery-store') {
         // Gallery Store push - updates JSON file in GitHub repo
