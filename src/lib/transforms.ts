@@ -311,9 +311,11 @@ export function transformToShopify(
       values: opt.values,
     }))
   } else if (hasExistingVariants && product.variants) {
-    // Pass through existing variants with their IDs (critical for updates!)
+    // Pass through existing variants
+    // Only include ID if it's a real Shopify ID (large number), not a local sequential ID
     variants = product.variants.map(v => ({
-      id: v.id,
+      // Shopify IDs are huge (e.g. 49284726384726), local IDs are small (1, 2, 3...)
+      ...(v.id && v.id > 100000 ? { id: v.id } : {}),
       price: v.price,
       compare_at_price: v.compare_at_price,
       sku: v.sku || undefined,
@@ -325,10 +327,10 @@ export function transformToShopify(
       option3: v.option3
     }))
     
-    // Also pass through existing options
+    // Also pass through existing options (same ID logic)
     if (hasExistingOptions && product.options) {
       productOptions = product.options.map(opt => ({
-        id: opt.id,
+        ...(opt.id && opt.id > 100000 ? { id: opt.id } : {}),
         name: opt.name,
         values: opt.values
       }))
