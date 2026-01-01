@@ -454,13 +454,7 @@ export function ProductEdit() {
         const shopifyExternalId = platformIds.shopify
         const isUpdate = !!shopifyExternalId
         
-        // On update, don't generate new variants (would cause 422 - Shopify needs variant IDs)
-        const shopifyProduct = transformToShopify(
-          product, 
-          store.store_name || 'Commerce Hub', 
-          shopifyTags,
-          { generateVariants: !isUpdate }
-        )
+        const shopifyProduct = transformToShopify(product, store.store_name || 'Commerce Hub', shopifyTags)
         
         const response = await fetch('/api/shopify/products', {
           method: 'POST',
