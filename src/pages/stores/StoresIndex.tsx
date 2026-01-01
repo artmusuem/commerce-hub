@@ -164,7 +164,6 @@ export function StoresIndex() {
           
           // ========== PRE-PUSH STATE DETECTION ==========
           const existingVariants = product.variants || []
-          const variantsWithShopifyIds = existingVariants.filter((v: { id?: number }) => v.id && v.id > 100000)
           const variantsWithoutShopifyIds = existingVariants.filter((v: { id?: number }) => !v.id || v.id <= 100000)
           
           if (!isUpdate) {
