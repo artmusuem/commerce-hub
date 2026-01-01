@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { transformToWooCommerce, transformToShopify } from '../../lib/transforms'
 import type { WooCategoryMap } from '../../lib/transforms'
-import { pushProductToWooCommerce, fetchProductVariations, updateProductVariation } from '../../lib/woocommerce'
+import { pushProductToWooCommerce, fetchProductVariations, updateProductVariation, createWooCommerceCategory } from '../../lib/woocommerce'
 import type { WooCommerceVariation } from '../../lib/woocommerce'
 
 interface WooCredentials {
@@ -367,9 +367,42 @@ export function ProductEdit() {
 
         // Build category map: lowercase name → WooCommerce ID
         const categoryMap: WooCategoryMap = {}
-        if (credentials.categories) {
-          for (const cat of credentials.categories) {
-            categoryMap[cat.name.toLowerCase()] = cat.id
+        let storedCategories = credentials.categories || []
+        for (const cat of storedCategories) {
+          categoryMap[cat.name.toLowerCase()] = cat.id
+        }
+
+        // Auto-create category if product has one that doesn't exist in WooCommerce
+        if (category && !categoryMap[category.toLowerCase()]) {
+          try {
+            const newCategory = await createWooCommerceCategory(
+              {
+                siteUrl: store.store_url || '',
+                consumerKey: credentials.consumer_key,
+                consumerSecret: credentials.consumer_secret
+              },
+              category
+            )
+            
+            // Add to local categoryMap
+            categoryMap[newCategory.name.toLowerCase()] = newCategory.id
+            
+            // Update stored categories in Supabase
+            storedCategories = [...storedCategories, { id: newCategory.id, name: newCategory.name }]
+            await supabase
+              .from('stores')
+              .update({ 
+                api_credentials: { 
+                  ...credentials, 
+                  categories: storedCategories 
+                } 
+              })
+              .eq('id', store.id)
+            
+            console.log(`Created WooCommerce category: ${newCategory.name} (ID: ${newCategory.id})`)
+          } catch (err) {
+            // Log but don't fail - product can still be created without category
+            console.warn('Failed to create category:', err)
           }
         }
 
