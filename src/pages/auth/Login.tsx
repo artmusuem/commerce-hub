@@ -71,8 +71,7 @@ export function Login() {
             </button>
 
             <p className="text-center text-sm text-gray-600">
-              Don't have an account?{' '}
-              <Link to="/register" className="text-blue-600 hover:underline">Register</Link>
+              Personal use only. Not accepting new registrations.
             </p>
           </form>
         </div>
