@@ -485,11 +485,38 @@ export function ProductEdit() {
           setPlatformIds(newPlatformIds)
         }
 
+        // Ensure Smart Collection exists for this product type
+        // This auto-populates the collection with products of matching type
+        let collectionMessage = ''
+        if (category) {
+          try {
+            const collectionResponse = await fetch('/api/shopify/collection', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                shop: shopDomain,
+                accessToken: credentials.access_token,
+                productType: category
+              })
+            })
+            
+            if (collectionResponse.ok) {
+              const collectionData = await collectionResponse.json()
+              if (collectionData.created) {
+                collectionMessage = ` + Collection "${collectionData.title}" created`
+              }
+            }
+          } catch (err) {
+            // Log but don't fail - product was already created
+            console.warn('Failed to ensure collection:', err)
+          }
+        }
+
         setPushResult({
           success: true,
           message: isUpdate 
-            ? `Product updated in Shopify! ID: ${productData?.id}`
-            : `Product created in Shopify! ID: ${productData?.id}`
+            ? `Product updated in Shopify! ID: ${productData?.id}${collectionMessage}`
+            : `Product created in Shopify! ID: ${productData?.id}${collectionMessage}`
         })
       } else if (store.platform === 'gallery-store') {
         // Gallery Store push - updates JSON file in GitHub repo
