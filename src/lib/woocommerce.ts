@@ -48,6 +48,15 @@ export interface WooCommercePushPayload {
   }[]
   download_limit?: number
   download_expiry?: number
+  // Pending variations for variable products (used by API to create after product)
+  _pendingVariations?: Array<{
+    regular_price: string
+    sku: string
+    manage_stock: boolean
+    stock_status: string
+    weight: string
+    attributes: Array<{ name: string; option: string }>
+  }>
 }
 
 /**
