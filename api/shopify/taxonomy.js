@@ -1,19 +1,6 @@
 // Shopify Category Taxonomy API
 // Finds matching taxonomy category and sets it on a product via GraphQL
 
-// Pre-defined mapping of common art categories to Shopify taxonomy IDs
-// These are from Shopify's Standard Product Taxonomy
-const CATEGORY_MAP = {
-  'paintings': 'gid://shopify/TaxonomyCategory/aa-4-7-4',      // Home & Garden > Decor > Artwork > Posters, Prints, & Visual Artwork > Paintings
-  'prints': 'gid://shopify/TaxonomyCategory/aa-4-7-5',         // Posters, Prints & Visual Artwork > Prints
-  'photographs': 'gid://shopify/TaxonomyCategory/aa-4-7-3',    // Posters, Prints & Visual Artwork > Photographs
-  'posters': 'gid://shopify/TaxonomyCategory/aa-4-7-2',        // Posters, Prints & Visual Artwork > Posters
-  'drawings': 'gid://shopify/TaxonomyCategory/aa-4-7-1',       // Posters, Prints & Visual Artwork > Drawings & Sketches
-  'sculptures': 'gid://shopify/TaxonomyCategory/aa-4-8',       // Home & Garden > Decor > Sculptures & Statues
-  'graphic arts': 'gid://shopify/TaxonomyCategory/aa-4-7',     // Posters, Prints & Visual Artwork (parent)
-  'visual artwork': 'gid://shopify/TaxonomyCategory/aa-4-7',   // Posters, Prints & Visual Artwork (parent)
-}
-
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
@@ -41,28 +28,115 @@ export default async function handler(req, res) {
   const graphqlUrl = `https://${apiDomain}/admin/api/2024-10/graphql.json`
 
   try {
-    // Look up category ID from our mapping
-    const searchTerm = (categoryName || 'paintings').toLowerCase().trim()
-    let categoryId = CATEGORY_MAP[searchTerm]
-    
-    // If not in map, try partial match
-    if (!categoryId) {
-      for (const [key, value] of Object.entries(CATEGORY_MAP)) {
-        if (searchTerm.includes(key) || key.includes(searchTerm)) {
-          categoryId = value
-          break
+    // Step 1: Fetch taxonomy categories from Shopify
+    const searchQuery = `
+      query {
+        taxonomy {
+          categories(first: 250) {
+            nodes {
+              id
+              name
+              fullName
+              isLeaf
+            }
+          }
         }
       }
+    `
+
+    const searchResponse = await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'X-Shopify-Access-Token': accessToken,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ query: searchQuery })
+    })
+
+    if (!searchResponse.ok) {
+      const errorText = await searchResponse.text()
+      console.error('Taxonomy fetch error:', searchResponse.status, errorText)
+      return res.status(searchResponse.status).json({
+        error: `Shopify API error: ${searchResponse.status}`,
+        details: errorText
+      })
+    }
+
+    const searchData = await searchResponse.json()
+    
+    if (searchData.errors) {
+      console.error('GraphQL errors:', searchData.errors)
+      return res.status(400).json({
+        error: 'GraphQL query failed',
+        details: searchData.errors
+      })
+    }
+
+    const categories = searchData.data?.taxonomy?.categories?.nodes || []
+    const searchTerm = (categoryName || 'paintings').toLowerCase()
+    
+    console.log(`Searching for category: ${searchTerm} among ${categories.length} categories`)
+    
+    // Find best match
+    let bestMatch = null
+    
+    // 1. Exact name match (leaf preferred)
+    bestMatch = categories.find(c => 
+      c.name.toLowerCase() === searchTerm && c.isLeaf
+    )
+    
+    // 2. Exact name match (any)
+    if (!bestMatch) {
+      bestMatch = categories.find(c => 
+        c.name.toLowerCase() === searchTerm
+      )
     }
     
-    // Default to "Posters, Prints & Visual Artwork" if no match
-    if (!categoryId) {
-      categoryId = CATEGORY_MAP['visual artwork']
+    // 3. Name contains search term (leaf preferred)
+    if (!bestMatch) {
+      bestMatch = categories.find(c => 
+        c.name.toLowerCase().includes(searchTerm) && c.isLeaf
+      )
+    }
+    
+    // 4. Full name contains search term (for things like "Visual Artwork > Paintings")
+    if (!bestMatch) {
+      bestMatch = categories.find(c => 
+        c.fullName?.toLowerCase().includes(searchTerm) && c.isLeaf
+      )
+    }
+    
+    // 5. Look for artwork-related fallback
+    if (!bestMatch) {
+      bestMatch = categories.find(c => 
+        (c.fullName?.toLowerCase().includes('artwork') || 
+         c.fullName?.toLowerCase().includes('visual') ||
+         c.fullName?.toLowerCase().includes('poster') ||
+         c.fullName?.toLowerCase().includes('print')) && c.isLeaf
+      )
     }
 
-    console.log(`Setting category for product ${productId}: ${categoryName} -> ${categoryId}`)
+    if (!bestMatch) {
+      // Log available categories for debugging
+      const artCategories = categories.filter(c => 
+        c.fullName?.toLowerCase().includes('art') || 
+        c.name.toLowerCase().includes('art')
+      ).map(c => ({ name: c.name, fullName: c.fullName, id: c.id }))
+      
+      console.log('Art-related categories found:', artCategories)
+      
+      return res.status(200).json({
+        success: false,
+        message: 'No matching taxonomy category found',
+        searchedFor: categoryName,
+        totalCategories: categories.length,
+        artRelatedCategories: artCategories.slice(0, 10)
+      })
+    }
 
-    // Update product with the category via GraphQL
+    console.log(`Found taxonomy category: ${bestMatch.fullName} (${bestMatch.id})`)
+
+    // Step 2: Update product with the category via GraphQL
     const updateMutation = `
       mutation productUpdate($input: ProductInput!) {
         productUpdate(input: $input) {
@@ -93,7 +167,7 @@ export default async function handler(req, res) {
         variables: {
           input: {
             id: `gid://shopify/Product/${productId}`,
-            category: categoryId
+            category: bestMatch.id
           }
         }
       })
@@ -132,9 +206,9 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: true,
       categorySet: {
-        id: categoryId,
-        name: categoryName,
-        fullName: updatedProduct?.category?.fullName || categoryName
+        id: bestMatch.id,
+        name: bestMatch.name,
+        fullName: bestMatch.fullName
       },
       product: updatedProduct
     })
