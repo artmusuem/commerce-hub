@@ -9,6 +9,18 @@ interface Store {
   store_name: string | null
 }
 
+interface ChannelInfo {
+  listing_id: string
+  sync_status: string
+  last_synced_at: string | null
+  channel_product_id: string
+}
+
+interface ProductWithChannels extends Product {
+  store_id?: string
+  channels?: Record<string, ChannelInfo>
+}
+
 function getThumbnail(url: string, size: number = 100): string {
   if (!url) return ''
   if (url.includes('ids.si.edu')) {
@@ -23,7 +35,7 @@ export function ProductsIndex() {
   // Derive selectedStore directly from URL - single source of truth
   const selectedStore = searchParams.get('store') || 'all'
   
-  const [products, setProducts] = useState<(Product & { store_id?: string })[]>([])
+  const [products, setProducts] = useState<ProductWithChannels[]>([])
   const [stores, setStores] = useState<Store[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
@@ -50,8 +62,9 @@ export function ProductsIndex() {
       .order('created_at', { ascending: false })
     setStores(storesData || [])
 
+    // Use products_with_channels view for channel badges
     const { data: productsData } = await supabase
-      .from('products')
+      .from('products_with_channels')
       .select('*')
       .order('created_at', { ascending: false })
     setProducts(productsData || [])
@@ -141,6 +154,20 @@ export function ProductsIndex() {
     'gallery-store': 'bg-blue-100 text-blue-700',
     'woocommerce': 'bg-purple-100 text-purple-700',
     'etsy': 'bg-orange-100 text-orange-700',
+  }
+
+  const channelColors: Record<string, string> = {
+    'woocommerce': 'bg-purple-100 text-purple-700 border-purple-200',
+    'shopify': 'bg-green-100 text-green-700 border-green-200',
+    'etsy': 'bg-orange-100 text-orange-700 border-orange-200',
+    'gallery-store': 'bg-blue-100 text-blue-700 border-blue-200',
+  }
+
+  const channelLabels: Record<string, string> = {
+    'woocommerce': 'WC',
+    'shopify': 'Shopify',
+    'etsy': 'Etsy',
+    'gallery-store': 'Gallery',
   }
 
   const filteredProducts = selectedStore === 'all' 
@@ -283,7 +310,7 @@ export function ProductsIndex() {
                   />
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Store</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Channels</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -291,7 +318,6 @@ export function ProductsIndex() {
             </thead>
             <tbody className="divide-y divide-gray-200">
               {filteredProducts.map(product => {
-                const store = getStore(product.store_id)
                 const isSelected = selectedIds.has(product.id)
                 return (
                   <tr key={product.id} className={`hover:bg-gray-50 ${isSelected ? 'bg-blue-50' : ''}`}>
@@ -317,13 +343,22 @@ export function ProductsIndex() {
                       </div>
                     </td>
                     <td className="px-4 py-4">
-                      {store ? (
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${platformColors[store.platform] || 'bg-gray-100 text-gray-700'}`}>
-                          {store.store_name || store.platform}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400 text-sm">—</span>
-                      )}
+                      <div className="flex flex-wrap gap-1">
+                        {product.channels && Object.keys(product.channels).length > 0 ? (
+                          Object.entries(product.channels).map(([channel, info]) => (
+                            <span 
+                              key={channel}
+                              className={`px-2 py-0.5 rounded text-xs font-medium border ${channelColors[channel] || 'bg-gray-100 text-gray-700 border-gray-200'}`}
+                              title={`ID: ${info.channel_product_id} • ${info.sync_status}`}
+                            >
+                              {channelLabels[channel] || channel}
+                              {info.sync_status === 'error' && ' ⚠️'}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-gray-400 text-sm">—</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-4 font-medium">${product.price.toFixed(2)}</td>
                     <td className="px-4 py-4">
