@@ -127,6 +127,224 @@ export interface TransformOptions {
   pricingTemplate?: PricingTemplate
 }
 
+// =============================================================================
+// PLATFORM API RESPONSE INTERFACES (for imports)
+// =============================================================================
+
+/**
+ * WooCommerce API Product Response
+ * This is what we get FROM WooCommerce when importing
+ */
+export interface WooCommerceApiProduct {
+  id: number
+  name: string
+  slug: string
+  type: 'simple' | 'variable' | 'grouped' | 'external'
+  status: 'publish' | 'draft' | 'pending' | 'private'
+  description: string
+  short_description: string
+  sku: string
+  price: string
+  regular_price: string
+  sale_price: string
+  images: { id?: number; src: string; alt?: string }[]
+  categories: { id: number; name: string; slug: string }[]
+  tags: { id: number; name: string; slug: string }[]
+  attributes: {
+    id: number
+    name: string
+    position: number
+    visible: boolean
+    variation: boolean
+    options: string[]
+  }[]
+  variations?: number[]  // IDs of variations for variable products
+  meta_data?: { key: string; value: string }[]
+}
+
+/**
+ * Shopify API Product Response
+ * This is what we get FROM Shopify when importing
+ */
+export interface ShopifyApiProduct {
+  id: number
+  title: string
+  body_html: string
+  vendor: string
+  product_type: string
+  handle: string
+  status: 'active' | 'draft' | 'archived'
+  tags: string  // Comma-separated
+  variants: {
+    id: number
+    product_id: number
+    title: string
+    price: string
+    compare_at_price: string | null
+    sku: string
+    barcode: string | null
+    position: number
+    inventory_quantity: number
+    inventory_management: string | null
+    option1: string | null
+    option2: string | null
+    option3: string | null
+    weight: number
+    weight_unit: string
+  }[]
+  options: {
+    id: number
+    product_id: number
+    name: string
+    position: number
+    values: string[]
+  }[]
+  images: {
+    id: number
+    product_id: number
+    src: string
+    alt: string | null
+    position: number
+    width: number
+    height: number
+  }[]
+}
+
+// =============================================================================
+// IMPORT TRANSFORMS (Platform → Commerce Hub)
+// =============================================================================
+
+/**
+ * Transform WooCommerce API product to Commerce Hub format
+ * Pure mapping - no generation, no assumptions
+ * 
+ * @param wooProduct - Raw product from WooCommerce API
+ * @param storeId - Store ID in Supabase
+ * @returns Commerce Hub product ready for Supabase insert
+ */
+export function transformFromWooCommerce(
+  wooProduct: WooCommerceApiProduct,
+  storeId: string
+): Omit<CommerceHubProduct, 'id'> & { external_id: string; tags?: string[] } {
+  // Map WooCommerce status to Commerce Hub status
+  const statusMap: Record<string, 'active' | 'draft' | 'archived'> = {
+    publish: 'active',
+    draft: 'draft',
+    pending: 'draft',
+    private: 'archived'
+  }
+
+  // Strip HTML from description
+  const stripHtml = (html: string): string => {
+    return html.replace(/<[^>]*>/g, '').trim()
+  }
+
+  return {
+    store_id: storeId,
+    external_id: String(wooProduct.id),
+    title: wooProduct.name,
+    description: stripHtml(wooProduct.description || wooProduct.short_description || ''),
+    price: parseFloat(wooProduct.price) || parseFloat(wooProduct.regular_price) || 0,
+    sku: wooProduct.sku || null,
+    image_url: wooProduct.images?.[0]?.src || null,
+    status: statusMap[wooProduct.status] || 'draft',
+    category: wooProduct.categories?.[0]?.name || null,
+    artist: null,  // WooCommerce doesn't have artist field
+    vendor: null,
+    product_type: wooProduct.type,
+    attributes: wooProduct.attributes?.map(attr => ({
+      id: attr.id,
+      name: attr.name,
+      position: attr.position,
+      visible: attr.visible,
+      variation: attr.variation,
+      options: attr.options
+    })) || [],
+    tags: wooProduct.tags?.map(t => t.name) || []
+  }
+}
+
+/**
+ * Transform Shopify API product to Commerce Hub format
+ * Pure mapping - no generation, no assumptions
+ * 
+ * @param shopifyProduct - Raw product from Shopify API
+ * @param storeId - Store ID in Supabase
+ * @returns Commerce Hub product ready for Supabase insert
+ */
+export function transformFromShopify(
+  shopifyProduct: ShopifyApiProduct,
+  storeId: string
+): Omit<CommerceHubProduct, 'id'> & { external_id: string; tags?: string[] } {
+  // Map Shopify status to Commerce Hub status
+  const statusMap: Record<string, 'active' | 'draft' | 'archived'> = {
+    active: 'active',
+    draft: 'draft',
+    archived: 'archived'
+  }
+
+  // Strip HTML from description
+  const stripHtml = (html: string): string => {
+    return html.replace(/<[^>]*>/g, '').trim()
+  }
+
+  // Get main variant for price/sku
+  const mainVariant = shopifyProduct.variants?.[0]
+
+  // Determine product type based on variants
+  const productType: 'simple' | 'variable' = 
+    shopifyProduct.variants?.length > 1 ? 'variable' : 'simple'
+
+  // Parse tags from comma-separated string
+  const tags = shopifyProduct.tags 
+    ? shopifyProduct.tags.split(',').map(t => t.trim()).filter(Boolean)
+    : []
+
+  return {
+    store_id: storeId,
+    external_id: String(shopifyProduct.id),
+    title: shopifyProduct.title,
+    description: stripHtml(shopifyProduct.body_html || ''),
+    price: parseFloat(mainVariant?.price || '0'),
+    sku: mainVariant?.sku || null,
+    image_url: shopifyProduct.images?.[0]?.src || null,
+    status: statusMap[shopifyProduct.status] || 'draft',
+    category: shopifyProduct.product_type || null,
+    artist: null,  // Could extract from vendor if it's an artist name
+    vendor: shopifyProduct.vendor || null,
+    product_type: productType,
+    // Map Shopify variants to our format
+    variants: shopifyProduct.variants?.map(v => ({
+      id: v.id,
+      title: v.title,
+      price: v.price,
+      compare_at_price: v.compare_at_price,
+      sku: v.sku || '',
+      barcode: v.barcode,
+      position: v.position,
+      inventory_quantity: v.inventory_quantity || 0,
+      inventory_management: v.inventory_management,
+      option1: v.option1,
+      option2: v.option2,
+      option3: v.option3,
+      weight: v.weight,
+      weight_unit: v.weight_unit
+    })) || [],
+    // Map Shopify options to our format
+    options: shopifyProduct.options?.map(opt => ({
+      id: opt.id,
+      name: opt.name,
+      position: opt.position,
+      values: opt.values
+    })) || [],
+    tags
+  }
+}
+
+// =============================================================================
+// EXPORT TRANSFORMS (Commerce Hub → Platform)
+// =============================================================================
+
 /**
  * Transform Commerce Hub product to WooCommerce format
  * @param product - Commerce Hub product from Supabase
