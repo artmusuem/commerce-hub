@@ -156,11 +156,6 @@ export function StoresIndex() {
         } else if (targetPlatform === 'shopify') {
           const credentials = targetStoreData.api_credentials as { access_token: string }
           const shopDomain = targetStoreData.store_url?.replace(/^https?:\/\//, '').replace(/\/$/, '') || ''
-          
-          // Check if product already exists on Shopify
-          const existingShopifyId = product.platform_ids?.shopify
-          const isUpdate = !!existingShopifyId
-          
           const shopifyProduct = transformToShopify(product, targetStoreData.store_name || 'Commerce Hub')
           
           const response = await fetch('/api/shopify/products', {
@@ -169,8 +164,7 @@ export function StoresIndex() {
             body: JSON.stringify({
               shop: shopDomain,
               accessToken: credentials.access_token,
-              action: isUpdate ? 'update' : 'create',
-              productId: isUpdate ? existingShopifyId : undefined,
+              action: 'create',
               product: shopifyProduct
             })
           })
@@ -180,25 +174,17 @@ export function StoresIndex() {
           }
           
           const result = await response.json()
-          const productId = result.product?.id
-          
-          // Save Shopify ID to platform_ids after create
-          if (productId && !isUpdate) {
-            await supabase
-              .from('products')
-              .update({ platform_ids: { ...product.platform_ids, shopify: String(productId) } })
-              .eq('id', product.id)
-          }
+          const createdProductId = result.product?.id
           
           // Set taxonomy category (same as single product push)
-          if (productId && product.category) {
+          if (createdProductId && product.category) {
             await fetch('/api/shopify/taxonomy', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 shop: shopDomain,
                 accessToken: credentials.access_token,
-                productId: productId,
+                productId: createdProductId,
                 categoryName: product.category
               })
             })
