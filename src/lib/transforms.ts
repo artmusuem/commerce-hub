@@ -138,7 +138,7 @@ export function transformToWooCommerce(
   categoryMap?: WooCategoryMap,
   options: TransformOptions = {}
 ): WooCommercePushPayload {
-  const { generateVariants: shouldGenerateVariants = true, pricingTemplate = STANDARD_TEMPLATE } = options
+  const { generateVariants: shouldGenerateVariants = false, pricingTemplate = STANDARD_TEMPLATE } = options
   
   // Map Commerce Hub status to WooCommerce status
   const statusMap: Record<string, string> = {
@@ -246,7 +246,7 @@ export function transformToShopify(
   shopifyTags?: string,
   options: TransformOptions = {}
 ): ShopifyPushPayload {
-  const { generateVariants: shouldGenerateVariants = true, pricingTemplate = STANDARD_TEMPLATE } = options
+  const { generateVariants: shouldGenerateVariants = false, pricingTemplate = STANDARD_TEMPLATE } = options
   
   // Map Commerce Hub status to Shopify status
   const statusMap: Record<string, 'active' | 'draft' | 'archived'> = {
@@ -475,7 +475,7 @@ export function transformFromGalleryStore(
   storeId: string,
   options: TransformOptions = {}
 ): Omit<CommerceHubProduct, 'id'> & { options?: CommerceHubProduct['options'], variants?: CommerceHubProduct['variants'] } {
-  const { generateVariants: shouldGenerateVariants = true } = options
+  const { generateVariants: shouldGenerateVariants = false } = options
   
   // Select pricing template based on artwork or use default
   let pricingTemplate: PricingTemplate
