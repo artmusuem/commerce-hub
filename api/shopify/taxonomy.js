@@ -1,6 +1,19 @@
 // Shopify Category Taxonomy API
 // Finds matching taxonomy category and sets it on a product via GraphQL
 
+// Pre-defined mapping of common art categories to Shopify taxonomy IDs
+// These are from Shopify's Standard Product Taxonomy
+const CATEGORY_MAP = {
+  'paintings': 'gid://shopify/TaxonomyCategory/aa-4-7-4',      // Home & Garden > Decor > Artwork > Posters, Prints, & Visual Artwork > Paintings
+  'prints': 'gid://shopify/TaxonomyCategory/aa-4-7-5',         // Posters, Prints & Visual Artwork > Prints
+  'photographs': 'gid://shopify/TaxonomyCategory/aa-4-7-3',    // Posters, Prints & Visual Artwork > Photographs
+  'posters': 'gid://shopify/TaxonomyCategory/aa-4-7-2',        // Posters, Prints & Visual Artwork > Posters
+  'drawings': 'gid://shopify/TaxonomyCategory/aa-4-7-1',       // Posters, Prints & Visual Artwork > Drawings & Sketches
+  'sculptures': 'gid://shopify/TaxonomyCategory/aa-4-8',       // Home & Garden > Decor > Sculptures & Statues
+  'graphic arts': 'gid://shopify/TaxonomyCategory/aa-4-7',     // Posters, Prints & Visual Artwork (parent)
+  'visual artwork': 'gid://shopify/TaxonomyCategory/aa-4-7',   // Posters, Prints & Visual Artwork (parent)
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
@@ -17,110 +30,39 @@ export default async function handler(req, res) {
   const { shop, accessToken, productId, categoryName } = req.body
 
   if (!shop || !accessToken || !productId) {
-    return res.status(400).json({ error: 'Missing required parameters', received: { shop: !!shop, accessToken: !!accessToken, productId: !!productId } })
+    return res.status(400).json({ error: 'Missing required parameters' })
   }
 
   const cleanDomain = shop.replace(/^https?:\/\//, '').replace(/\/$/, '')
-  
-  // Ensure domain has .myshopify.com for API calls
   const apiDomain = cleanDomain.includes('.myshopify.com') 
     ? cleanDomain 
     : `${cleanDomain}.myshopify.com`
   
   const graphqlUrl = `https://${apiDomain}/admin/api/2024-10/graphql.json`
 
-  console.log('Taxonomy API called:', { shop: cleanDomain, apiDomain, productId, categoryName, graphqlUrl })
-
   try {
-    // Step 1: Search for matching taxonomy category
-    const searchQuery = `
-      query searchTaxonomy($query: String!) {
-        taxonomy {
-          categories(first: 20, query: $query) {
-            nodes {
-              id
-              name
-              fullName
-              isLeaf
-            }
-          }
+    // Look up category ID from our mapping
+    const searchTerm = (categoryName || 'paintings').toLowerCase().trim()
+    let categoryId = CATEGORY_MAP[searchTerm]
+    
+    // If not in map, try partial match
+    if (!categoryId) {
+      for (const [key, value] of Object.entries(CATEGORY_MAP)) {
+        if (searchTerm.includes(key) || key.includes(searchTerm)) {
+          categoryId = value
+          break
         }
       }
-    `
-
-    console.log('Making GraphQL request to:', graphqlUrl)
-
-    const searchResponse = await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'X-Shopify-Access-Token': accessToken,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        query: searchQuery,
-        variables: { query: categoryName || 'Paintings' }
-      })
-    })
-
-    if (!searchResponse.ok) {
-      const errorText = await searchResponse.text()
-      console.error('Taxonomy search error:', searchResponse.status, errorText)
-      return res.status(searchResponse.status).json({
-        error: `Shopify API error: ${searchResponse.status}`,
-        url: graphqlUrl,
-        details: errorText
-      })
-    }
-
-    const searchData = await searchResponse.json()
-    
-    if (searchData.errors) {
-      console.error('GraphQL errors:', searchData.errors)
-      return res.status(400).json({
-        error: 'GraphQL query failed',
-        url: graphqlUrl,
-        details: searchData.errors
-      })
-    }
-
-    const categories = searchData.data?.taxonomy?.categories?.nodes || []
-    
-    // Find best match - prefer leaf nodes (most specific)
-    let bestMatch = categories.find(c => 
-      c.name.toLowerCase() === (categoryName || 'paintings').toLowerCase() && c.isLeaf
-    )
-    
-    // If no exact leaf match, find any exact match
-    if (!bestMatch) {
-      bestMatch = categories.find(c => 
-        c.name.toLowerCase() === (categoryName || 'paintings').toLowerCase()
-      )
     }
     
-    // Look for Paintings in Visual Artwork path
-    if (!bestMatch) {
-      bestMatch = categories.find(c => 
-        c.fullName?.toLowerCase().includes('visual artwork') &&
-        c.fullName?.toLowerCase().includes('painting')
-      )
-    }
-    
-    // Fallback to first leaf result
-    if (!bestMatch) {
-      bestMatch = categories.find(c => c.isLeaf) || categories[0]
+    // Default to "Posters, Prints & Visual Artwork" if no match
+    if (!categoryId) {
+      categoryId = CATEGORY_MAP['visual artwork']
     }
 
-    if (!bestMatch) {
-      return res.status(200).json({
-        success: false,
-        message: 'No matching taxonomy category found',
-        searchedFor: categoryName
-      })
-    }
+    console.log(`Setting category for product ${productId}: ${categoryName} -> ${categoryId}`)
 
-    console.log(`Found taxonomy category: ${bestMatch.fullName} (${bestMatch.id})`)
-
-    // Step 2: Update product with the category via GraphQL
+    // Update product with the category via GraphQL
     const updateMutation = `
       mutation productUpdate($input: ProductInput!) {
         productUpdate(input: $input) {
@@ -151,7 +93,7 @@ export default async function handler(req, res) {
         variables: {
           input: {
             id: `gid://shopify/Product/${productId}`,
-            category: bestMatch.id
+            category: categoryId
           }
         }
       })
@@ -190,9 +132,9 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: true,
       categorySet: {
-        id: bestMatch.id,
-        name: bestMatch.name,
-        fullName: bestMatch.fullName
+        id: categoryId,
+        name: categoryName,
+        fullName: updatedProduct?.category?.fullName || categoryName
       },
       product: updatedProduct
     })
