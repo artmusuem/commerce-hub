@@ -158,9 +158,7 @@ export function transformToWooCommerce(
     type: isVariable ? 'variable' : (product.is_digital ? 'simple' : undefined),
     status: statusMap[product.status] || 'draft',
     description: product.description || '',
-    short_description: product.artist 
-      ? `By ${product.artist}` 
-      : undefined,
+    short_description: undefined,  // Let the product's actual data drive this
     sku: product.sku || `CH-${product.id.slice(0, 8)}`,
     regular_price: isVariable ? '' : product.price.toFixed(2),
   }
@@ -271,13 +269,9 @@ export function transformToShopify(
     bodyHtml += `<p><strong>📥 Digital Download:</strong> You will receive a download link after purchase.</p>`
   }
 
-  // Build tags - fallback to artist-based tags if none provided
+  // Build tags - pass through what was provided, don't invent tags
   let tags = shopifyTags || ''
-  if (!tags && product.artist) {
-    tags = `art, print, ${product.artist.toLowerCase()}`
-  } else if (!tags) {
-    tags = 'art, print'
-  }
+  // Only add digital-download tag if it's a digital product
   if (product.is_digital && !tags.toLowerCase().includes('digital')) {
     tags = tags ? `${tags}, digital-download` : 'digital-download'
   }
@@ -351,7 +345,7 @@ export function transformToShopify(
     title: product.title,
     body_html: bodyHtml,
     vendor: product.vendor || vendorName,
-    product_type: product.category || 'Art Print',
+    product_type: product.category || '',
     tags,
     status: statusMap[product.status] || 'draft',
     variants
