@@ -5,7 +5,7 @@
 ```
 I'm continuing Commerce Hub development.
 Read: /mnt/project/COMMERCE-HUB-HANDOFF.md
-Current task: Step 1.1 - Fix Shopify tags sync
+Current task: Step 1.2 - Fix WooCommerce category mapping
 ```
 
 ---
@@ -289,9 +289,9 @@ On sync:
 ## Implementation Order (Recommended)
 
 ### Week 1: Fix Current Issues
-1. ✅ Step 1.1: Fix Shopify tags (30 min)
-2. ✅ Step 1.2: Fix WooCommerce categories (2 hr)
-3. ✅ Step 1.3: Test update logic (1 hr)
+1. ✅ Step 1.1: Fix Shopify tags (30 min) - DONE
+2. ⬜ Step 1.2: Fix WooCommerce categories (2 hr) - **NEXT**
+3. ✅ Step 1.3: Cross-platform update logic (1 hr) - DONE (platform_ids)
 
 ### Week 2: Bulk Operations
 4. Step 2.1: Bulk push (4 hr)
