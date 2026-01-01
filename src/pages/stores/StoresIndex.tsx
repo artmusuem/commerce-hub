@@ -54,12 +54,41 @@ export function StoresIndex() {
 
     const storesWithCounts = await Promise.all(
       storesData.map(async (store) => {
-        const { count } = await supabase
-          .from('products')
-          .select('*', { count: 'exact', head: true })
-          .eq('store_id', store.id)
+        let count = 0
         
-        return { ...store, product_count: count || 0 }
+        if (store.platform === 'gallery-store') {
+          // Gallery Store: count products that originated here
+          const result = await supabase
+            .from('products')
+            .select('*', { count: 'exact', head: true })
+            .eq('store_id', store.id)
+          count = result.count || 0
+        } else {
+          // External platforms (Shopify, WooCommerce, Etsy): count products synced there
+          // Query products where platform_ids contains this platform
+          const result = await supabase
+            .from('products')
+            .select('*', { count: 'exact', head: true })
+            .not('platform_ids', 'is', null)
+            .neq('platform_ids', '{}')
+          
+          // Need to filter client-side for JSONB key existence
+          // Supabase doesn't have great support for JSONB key checks in count queries
+          if (result.count && result.count > 0) {
+            const { data: products } = await supabase
+              .from('products')
+              .select('platform_ids')
+              .not('platform_ids', 'is', null)
+            
+            if (products) {
+              count = products.filter(p => 
+                p.platform_ids && p.platform_ids[store.platform]
+              ).length
+            }
+          }
+        }
+        
+        return { ...store, product_count: count }
       })
     )
     
