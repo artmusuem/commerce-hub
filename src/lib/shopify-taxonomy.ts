@@ -199,7 +199,8 @@ export function parseMedium(description: string): string | null {
   
   for (const [pattern, medium] of mediumPatterns) {
     if (pattern.test(desc)) {
-      return ATTRIBUTES['painting-medium'].values[medium] || null
+      const values = ATTRIBUTES['painting-medium'].values as Record<string, string>
+      return values[medium] || null
     }
   }
   
@@ -229,7 +230,8 @@ export function parseTheme(title: string, description: string): string | null {
   
   for (const [pattern, theme] of themePatterns) {
     if (pattern.test(text)) {
-      return ATTRIBUTES['theme'].values[theme] || null
+      const values = ATTRIBUTES['theme'].values as Record<string, string>
+      return values[theme] || null
     }
   }
   
