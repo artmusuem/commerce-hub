@@ -162,6 +162,30 @@ export async function fetchWooCommerceCategories(
 }
 
 /**
+ * Create a new category in WooCommerce
+ */
+export async function createWooCommerceCategory(
+  credentials: WooCommerceCredentials,
+  categoryName: string
+): Promise<{ id: number; name: string }> {
+  const response = await fetch('/api/woocommerce/category', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      credentials,
+      name: categoryName
+    })
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`Failed to create category: ${error}`)
+  }
+
+  return response.json()
+}
+
+/**
  * Update a product variation (price, stock, etc.)
  */
 export async function updateProductVariation(
