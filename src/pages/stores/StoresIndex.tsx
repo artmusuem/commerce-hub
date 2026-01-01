@@ -175,7 +175,8 @@ export function StoresIndex() {
           })
 
           if (!response.ok) {
-            throw new Error('Shopify push failed')
+            const errorData = await response.json().catch(() => ({}))
+            throw new Error(`Shopify: ${errorData.details || errorData.error || response.status}`)
           }
           
           const result = await response.json()
