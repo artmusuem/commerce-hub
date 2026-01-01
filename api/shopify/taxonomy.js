@@ -1,5 +1,6 @@
 // Shopify Category Taxonomy API
-// Sets product category using known art taxonomy IDs
+// Sets product category using verified Shopify taxonomy IDs
+// Reference: https://github.com/Shopify/product-taxonomy
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -27,25 +28,49 @@ export default async function handler(req, res) {
   
   const graphqlUrl = `https://${apiDomain}/admin/api/2024-10/graphql.json`
 
-  // Known art category mappings from Shopify's Standard Product Taxonomy
-  // Source: https://shopify.github.io/product-taxonomy/
+  // VERIFIED category mappings from Shopify's Standard Product Taxonomy
+  // Source: https://raw.githubusercontent.com/Shopify/product-taxonomy/main/dist/en/categories.txt
+  // Path: Home & Garden > Decor > Artwork > Posters, Prints, & Visual Artwork
   const ART_CATEGORY_MAP = {
-    'paintings': 'gid://shopify/TaxonomyCategory/hg-4-7-4',      // Paintings in Posters, Prints & Visual Artwork
-    'painting': 'gid://shopify/TaxonomyCategory/hg-4-7-4',
-    'prints': 'gid://shopify/TaxonomyCategory/hg-4-7-5',         // Prints in Posters, Prints & Visual Artwork
-    'print': 'gid://shopify/TaxonomyCategory/hg-4-7-5',
-    'photographs': 'gid://shopify/TaxonomyCategory/hg-4-7-3',    // Photographs
-    'photograph': 'gid://shopify/TaxonomyCategory/hg-4-7-3',
-    'photography': 'gid://shopify/TaxonomyCategory/hg-4-7-3',
-    'posters': 'gid://shopify/TaxonomyCategory/hg-4-7-6',        // Posters
-    'poster': 'gid://shopify/TaxonomyCategory/hg-4-7-6',
-    'sculptures': 'gid://shopify/TaxonomyCategory/hg-4-8',       // Sculptures & Statues
-    'sculpture': 'gid://shopify/TaxonomyCategory/hg-4-8',
-    'drawings': 'gid://shopify/TaxonomyCategory/hg-4-7-2',       // Drawings & Sketches
-    'drawing': 'gid://shopify/TaxonomyCategory/hg-4-7-2',
-    'art': 'gid://shopify/TaxonomyCategory/hg-4-7',              // Posters, Prints & Visual Artwork (parent)
-    'visual artwork': 'gid://shopify/TaxonomyCategory/hg-4-7',
-    'default': 'gid://shopify/TaxonomyCategory/hg-4-7-4'         // Default to Paintings
+    // Primary art categories
+    'paintings': 'gid://shopify/TaxonomyCategory/hg-3-4-2-4',
+    'painting': 'gid://shopify/TaxonomyCategory/hg-3-4-2-4',
+    'oil painting': 'gid://shopify/TaxonomyCategory/hg-3-4-2-4',
+    'watercolor': 'gid://shopify/TaxonomyCategory/hg-3-4-2-4',
+    
+    'prints': 'gid://shopify/TaxonomyCategory/hg-3-4-2-2',
+    'print': 'gid://shopify/TaxonomyCategory/hg-3-4-2-2',
+    'art print': 'gid://shopify/TaxonomyCategory/hg-3-4-2-2',
+    'giclee': 'gid://shopify/TaxonomyCategory/hg-3-4-2-2',
+    
+    'posters': 'gid://shopify/TaxonomyCategory/hg-3-4-2-1',
+    'poster': 'gid://shopify/TaxonomyCategory/hg-3-4-2-1',
+    
+    'visual artwork': 'gid://shopify/TaxonomyCategory/hg-3-4-2-3',
+    'artwork': 'gid://shopify/TaxonomyCategory/hg-3-4-2-3',
+    'photographs': 'gid://shopify/TaxonomyCategory/hg-3-4-2-3',
+    'photograph': 'gid://shopify/TaxonomyCategory/hg-3-4-2-3',
+    'photography': 'gid://shopify/TaxonomyCategory/hg-3-4-2-3',
+    'photo': 'gid://shopify/TaxonomyCategory/hg-3-4-2-3',
+    'drawings': 'gid://shopify/TaxonomyCategory/hg-3-4-2-3',
+    'drawing': 'gid://shopify/TaxonomyCategory/hg-3-4-2-3',
+    'sketch': 'gid://shopify/TaxonomyCategory/hg-3-4-2-3',
+    
+    'sculptures': 'gid://shopify/TaxonomyCategory/hg-3-4-3',
+    'sculpture': 'gid://shopify/TaxonomyCategory/hg-3-4-3',
+    'statue': 'gid://shopify/TaxonomyCategory/hg-3-4-3',
+    'statues': 'gid://shopify/TaxonomyCategory/hg-3-4-3',
+    
+    'tapestry': 'gid://shopify/TaxonomyCategory/hg-3-4-1',
+    'tapestries': 'gid://shopify/TaxonomyCategory/hg-3-4-1',
+    
+    // Parent categories (use for generic art)
+    'art': 'gid://shopify/TaxonomyCategory/hg-3-4-2',  // Posters, Prints & Visual Artwork
+    'wall art': 'gid://shopify/TaxonomyCategory/hg-3-4-2',
+    'fine art': 'gid://shopify/TaxonomyCategory/hg-3-4-2',
+    
+    // Default fallback
+    'default': 'gid://shopify/TaxonomyCategory/hg-3-4-2-4'  // Paintings
   }
 
   try {
@@ -57,6 +82,7 @@ export default async function handler(req, res) {
     console.log(`Mapping "${searchTerm}" to category: ${categoryId}`)
 
     // Update product with the category via GraphQL
+    // Using ProductUpdateInput (not deprecated ProductInput)
     const updateMutation = `
       mutation productUpdate($product: ProductUpdateInput!) {
         productUpdate(product: $product) {
@@ -129,7 +155,8 @@ export default async function handler(req, res) {
       success: true,
       categoryMapped: {
         searchTerm,
-        categoryId
+        categoryId,
+        categoryPath: updatedProduct?.category?.fullName || 'Unknown'
       },
       product: updatedProduct
     })
