@@ -21,7 +21,7 @@ export default async function handler(req, res) {
   }
 
   const cleanDomain = shop.replace(/^https?:\/\//, '').replace(/\/$/, '')
-  const graphqlUrl = `https://${cleanDomain}/admin/api/2024-10/graphql.json`
+  const graphqlUrl = `https://${cleanDomain}/admin/api/2024-04/graphql.json`
 
   try {
     // Step 1: Search for matching taxonomy category
