@@ -168,6 +168,13 @@ export function WooCommerceConnect() {
 
       // Delete existing products for this store before import (prevents duplicates)
       if (storeId) {
+        // First delete channel_listings (they have ON DELETE CASCADE, but let's be explicit)
+        await supabase
+          .from('channel_listings')
+          .delete()
+          .eq('store_id', storeId)
+          .eq('channel', 'woocommerce')
+
         const { error: deleteError } = await supabase
           .from('products')
           .delete()
@@ -202,10 +209,11 @@ export function WooCommerceConnect() {
           return base
         })
 
-      // Batch insert
-      const { error: insertError } = await supabase
+      // Batch insert products and get their IDs back
+      const { data: insertedProducts, error: insertError } = await supabase
         .from('products')
         .insert(transformedProducts)
+        .select('id, external_id, sku')
 
       if (insertError) {
         // If optional columns don't exist, retry without them
@@ -221,6 +229,27 @@ export function WooCommerceConnect() {
           if (retryError) throw retryError
         } else {
           throw insertError
+        }
+      }
+
+      // Create channel_listings entries for the new multi-channel architecture
+      if (insertedProducts && storeId) {
+        const channelListings = insertedProducts.map(p => ({
+          product_id: p.id,
+          store_id: storeId,
+          channel: 'woocommerce',
+          channel_product_id: p.external_id,  // WooCommerce product ID
+          sync_status: 'synced',
+          last_synced_at: new Date().toISOString()
+        }))
+
+        const { error: listingsError } = await supabase
+          .from('channel_listings')
+          .insert(channelListings)
+
+        if (listingsError) {
+          console.error('Error creating channel listings:', listingsError)
+          // Don't fail the whole import, just log it
         }
       }
 
