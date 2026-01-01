@@ -21,9 +21,15 @@ export default async function handler(req, res) {
   }
 
   const cleanDomain = shop.replace(/^https?:\/\//, '').replace(/\/$/, '')
-  const graphqlUrl = `https://${cleanDomain}/admin/api/2024-04/graphql.json`
+  
+  // Ensure domain has .myshopify.com for API calls
+  const apiDomain = cleanDomain.includes('.myshopify.com') 
+    ? cleanDomain 
+    : `${cleanDomain}.myshopify.com`
+  
+  const graphqlUrl = `https://${apiDomain}/admin/api/2024-04/graphql.json`
 
-  console.log('Taxonomy API called:', { shop: cleanDomain, productId, categoryName, graphqlUrl })
+  console.log('Taxonomy API called:', { shop: cleanDomain, apiDomain, productId, categoryName, graphqlUrl })
 
   try {
     // Step 1: Search for matching taxonomy category
