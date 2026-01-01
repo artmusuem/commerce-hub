@@ -49,6 +49,15 @@ export default async function handler(req, res) {
     'statues': 'gid://shopify/TaxonomyCategory/hg-3-4-3',
     'tapestries': 'gid://shopify/TaxonomyCategory/hg-3-4-1',
     'tapestry': 'gid://shopify/TaxonomyCategory/hg-3-4-1',
+    // Smithsonian categories
+    'graphic arts': 'gid://shopify/TaxonomyCategory/hg-3-4-2-2',  // Maps to Prints
+    'graphic art': 'gid://shopify/TaxonomyCategory/hg-3-4-2-2',
+    'drawings': 'gid://shopify/TaxonomyCategory/hg-3-4-2-3',
+    'drawing': 'gid://shopify/TaxonomyCategory/hg-3-4-2-3',
+    'watercolors': 'gid://shopify/TaxonomyCategory/hg-3-4-2-4',
+    'watercolor': 'gid://shopify/TaxonomyCategory/hg-3-4-2-4',
+    'oil painting': 'gid://shopify/TaxonomyCategory/hg-3-4-2-4',
+    'oil paintings': 'gid://shopify/TaxonomyCategory/hg-3-4-2-4',
     'default': 'gid://shopify/TaxonomyCategory/hg-3-4-2-4'
   }
 
