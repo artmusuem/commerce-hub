@@ -205,6 +205,8 @@ export default function ShopifyImport() {
         }
 
         let error
+        let productId: string | null = null
+        
         if (existing) {
           // Update existing product
           const { error: updateError } = await supabase
@@ -212,14 +214,42 @@ export default function ShopifyImport() {
             .update(productData)
             .eq('id', existing.id)
           error = updateError
+          productId = existing.id
           if (!updateError) updated++
         } else {
           // Insert new product
-          const { error: insertError } = await supabase
+          const { data: insertedProduct, error: insertError } = await supabase
             .from('products')
             .insert(productData)
+            .select('id')
+            .single()
           error = insertError
+          productId = insertedProduct?.id || null
           if (!insertError) count++
+        }
+
+        // Create/update channel_listing for multi-channel tracking
+        if (!error && productId && selectedStore) {
+          const { error: listingError } = await supabase
+            .from('channel_listings')
+            .upsert({
+              product_id: productId,
+              store_id: selectedStore.id,
+              channel: 'shopify',
+              channel_product_id: externalId,
+              channel_variant_ids: product.variants.reduce((acc, v) => {
+                if (v.sku) acc[v.sku] = String(v.id)
+                return acc
+              }, {} as Record<string, string>),
+              sync_status: 'synced',
+              last_synced_at: new Date().toISOString()
+            }, {
+              onConflict: 'product_id,channel'
+            })
+          
+          if (listingError) {
+            console.error('Error creating channel listing:', listingError)
+          }
         }
 
         if (error) {
