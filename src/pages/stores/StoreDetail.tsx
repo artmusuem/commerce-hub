@@ -70,47 +70,58 @@ export function StoreDetail() {
     
     setStore(storeData)
     
-    // Load products for this store
-    const { data: productsData } = await supabase
-      .from('products')
-      .select('*')
-      .eq('store_id', storeId)
-      .order('created_at', { ascending: false })
-      .limit(10)
+    // Load products based on platform type
+    let productsData: Product[] = []
+    let total = 0, active = 0, draft = 0, archived = 0
     
-    setProducts(productsData || [])
+    if (storeData.platform === 'gallery-store') {
+      // Gallery Store: products originated here (use store_id)
+      const { data } = await supabase
+        .from('products')
+        .select('*')
+        .eq('store_id', storeId)
+        .order('created_at', { ascending: false })
+        .limit(10)
+      
+      productsData = data || []
+      
+      // Get stats
+      const { count: t } = await supabase.from('products').select('*', { count: 'exact', head: true }).eq('store_id', storeId)
+      const { count: a } = await supabase.from('products').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'active')
+      const { count: d } = await supabase.from('products').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'draft')
+      const { count: ar } = await supabase.from('products').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'archived')
+      
+      total = t || 0
+      active = a || 0
+      draft = d || 0
+      archived = ar || 0
+    } else {
+      // External platforms (Shopify, WooCommerce, Etsy): products synced there (use platform_ids)
+      const platform = storeData.platform
+      
+      // Fetch all products with platform_ids, filter client-side
+      const { data: allProducts } = await supabase
+        .from('products')
+        .select('*')
+        .not('platform_ids', 'is', null)
+        .order('created_at', { ascending: false })
+      
+      if (allProducts) {
+        // Filter to products that have been synced to this platform
+        const syncedProducts = allProducts.filter(p => 
+          p.platform_ids && p.platform_ids[platform]
+        )
+        
+        productsData = syncedProducts.slice(0, 10)
+        total = syncedProducts.length
+        active = syncedProducts.filter(p => p.status === 'active').length
+        draft = syncedProducts.filter(p => p.status === 'draft').length
+        archived = syncedProducts.filter(p => p.status === 'archived').length
+      }
+    }
     
-    // Get product stats
-    const { count: total } = await supabase
-      .from('products')
-      .select('*', { count: 'exact', head: true })
-      .eq('store_id', storeId)
-    
-    const { count: active } = await supabase
-      .from('products')
-      .select('*', { count: 'exact', head: true })
-      .eq('store_id', storeId)
-      .eq('status', 'active')
-    
-    const { count: draft } = await supabase
-      .from('products')
-      .select('*', { count: 'exact', head: true })
-      .eq('store_id', storeId)
-      .eq('status', 'draft')
-    
-    const { count: archived } = await supabase
-      .from('products')
-      .select('*', { count: 'exact', head: true })
-      .eq('store_id', storeId)
-      .eq('status', 'archived')
-    
-    setStats({
-      total: total || 0,
-      active: active || 0,
-      draft: draft || 0,
-      archived: archived || 0
-    })
-    
+    setProducts(productsData)
+    setStats({ total, active, draft, archived })
     setLoading(false)
   }
 
