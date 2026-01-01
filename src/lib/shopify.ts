@@ -79,7 +79,7 @@ export async function fetchShopifyProducts(
   const cleanDomain = shopDomain.replace(/^https?:\/\//, '').replace(/\/$/, '')
   
   const response = await fetch(
-    `https://${cleanDomain}/admin/api/2024-01/products.json?limit=250`,
+    `https://${cleanDomain}/admin/api/2024-10/products.json?limit=250`,
     {
       headers: {
         'X-Shopify-Access-Token': accessToken,
@@ -112,7 +112,7 @@ export async function pushProductToShopify(
   const cleanDomain = shopDomain.replace(/^https?:\/\//, '').replace(/\/$/, '')
   
   const response = await fetch(
-    `https://${cleanDomain}/admin/api/2024-01/products.json`,
+    `https://${cleanDomain}/admin/api/2024-10/products.json`,
     {
       method: 'POST',
       headers: {
