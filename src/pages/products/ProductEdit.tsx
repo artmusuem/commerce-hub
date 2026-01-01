@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { transformToWooCommerce, transformToShopify } from '../../lib/transforms'
 import type { WooCategoryMap } from '../../lib/transforms'
-import { pushProductToWooCommerce, fetchProductVariations, updateProductVariation, createWooCommerceCategory } from '../../lib/woocommerce'
+import { pushProductToWooCommerce, fetchProductVariations, updateProductVariation } from '../../lib/woocommerce'
 import type { WooCommerceVariation } from '../../lib/woocommerce'
 
 interface WooCredentials {
@@ -75,7 +75,6 @@ export function ProductEdit() {
   const [_storeId, setStoreId] = useState<string | null>(null)
   const [productPlatform, setProductPlatform] = useState<string | null>(null)
   const [externalId, setExternalId] = useState<string | null>(null)
-  const [platformIds, setPlatformIds] = useState<Record<string, string>>({})
   const [attributes, setAttributes] = useState<ProductAttribute[]>([])
   const [shopifyTags, setShopifyTags] = useState('')
   const [productType, setProductType] = useState<string>('simple')
@@ -145,7 +144,6 @@ export function ProductEdit() {
       setSku(data.sku || '')
       setStoreId(data.store_id || null)
       setExternalId(data.external_id || null)
-      setPlatformIds(data.platform_ids || {})
       
       // Handle attributes - can be array (WooCommerce) or object (Shopify)
       const attrs = data.attributes || []
@@ -367,52 +365,19 @@ export function ProductEdit() {
 
         // Build category map: lowercase name → WooCommerce ID
         const categoryMap: WooCategoryMap = {}
-        let storedCategories = credentials.categories || []
-        for (const cat of storedCategories) {
-          categoryMap[cat.name.toLowerCase()] = cat.id
-        }
-
-        // Auto-create category if product has one that doesn't exist in WooCommerce
-        if (category && !categoryMap[category.toLowerCase()]) {
-          try {
-            const newCategory = await createWooCommerceCategory(
-              {
-                siteUrl: store.store_url || '',
-                consumerKey: credentials.consumer_key,
-                consumerSecret: credentials.consumer_secret
-              },
-              category
-            )
-            
-            // Add to local categoryMap
-            categoryMap[newCategory.name.toLowerCase()] = newCategory.id
-            
-            // Update stored categories in Supabase
-            storedCategories = [...storedCategories, { id: newCategory.id, name: newCategory.name }]
-            await supabase
-              .from('stores')
-              .update({ 
-                api_credentials: { 
-                  ...credentials, 
-                  categories: storedCategories 
-                } 
-              })
-              .eq('id', store.id)
-            
-            console.log(`Created WooCommerce category: ${newCategory.name} (ID: ${newCategory.id})`)
-          } catch (err) {
-            // Log but don't fail - product can still be created without category
-            console.warn('Failed to create category:', err)
+        if (credentials.categories) {
+          for (const cat of credentials.categories) {
+            categoryMap[cat.name.toLowerCase()] = cat.id
           }
         }
 
         const wooProduct = transformToWooCommerce(product, categoryMap)
         
-        // Check platformIds.woocommerce for existing WooCommerce product ID
-        const wooExternalId = platformIds.woocommerce 
-          ? parseInt(platformIds.woocommerce) 
+        // Only use external_id for updates if product came from WooCommerce
+        // (prevents using Shopify ID to try updating WooCommerce)
+        const wooExternalId = productPlatform === 'woocommerce' && externalId 
+          ? parseInt(externalId) 
           : undefined
-        const isUpdate = !!wooExternalId
         
         const result = await pushProductToWooCommerce(
           {
@@ -424,21 +389,9 @@ export function ProductEdit() {
           wooExternalId
         )
 
-        // Save WooCommerce product ID to platformIds after create
-        if (!isUpdate && result?.id) {
-          const newPlatformIds = { ...platformIds, woocommerce: String(result.id) }
-          await supabase
-            .from('products')
-            .update({ platform_ids: newPlatformIds })
-            .eq('id', id)
-          setPlatformIds(newPlatformIds)
-        }
-
         setPushResult({
           success: true,
-          message: isUpdate
-            ? `Product updated in WooCommerce! ID: ${result.id}`
-            : `Product created in WooCommerce! ID: ${result.id}`
+          message: `Product pushed to WooCommerce! ID: ${result.id}`
         })
             } else if (store.platform === 'shopify') {
         // Shopify push via serverless proxy (avoids CORS)
@@ -451,9 +404,9 @@ export function ProductEdit() {
         const shopDomain = store.store_url?.replace(/^https?:\/\//, '').replace(/\/$/, '') || ''
         const shopifyProduct = transformToShopify(product, store.store_name || 'Commerce Hub', shopifyTags)
         
-        // Check platformIds.shopify for existing Shopify product ID
-        const shopifyExternalId = platformIds.shopify
-        const isUpdate = !!shopifyExternalId
+        // Only use external_id for updates if product came from Shopify
+        // (prevents using WooCommerce ID to try updating Shopify)
+        const isUpdate = productPlatform === 'shopify' && externalId && !isNaN(parseInt(externalId))
         
         const response = await fetch('/api/shopify/products', {
           method: 'POST',
@@ -462,7 +415,7 @@ export function ProductEdit() {
             shop: shopDomain,
             accessToken: credentials.access_token,
             action: isUpdate ? 'update' : 'create',
-            productId: isUpdate ? shopifyExternalId : undefined,
+            productId: isUpdate ? externalId : undefined,
             product: shopifyProduct
           })
         })
@@ -475,87 +428,21 @@ export function ProductEdit() {
         const result = await response.json()
         const productData = result.product
         
-        // Save Shopify product ID to platformIds after create OR recreate
-        // recreated = true when product was deleted on Shopify and we fell back to CREATE
-        if ((!isUpdate || result.recreated) && productData?.id) {
-          const newPlatformIds = { ...platformIds, shopify: String(productData.id) }
+        // Only save external_id if this was a create AND product is from Shopify
+        // (don't overwrite Gallery Store or WooCommerce external_id)
+        if (!isUpdate && productData?.id && productPlatform === 'shopify') {
           await supabase
             .from('products')
-            .update({ platform_ids: newPlatformIds })
+            .update({ external_id: String(productData.id) })
             .eq('id', id)
-          setPlatformIds(newPlatformIds)
-          if (result.recreated) {
-            console.log(`Product was deleted on Shopify, recreated with new ID: ${productData.id}`)
-          }
+          setExternalId(String(productData.id))
         }
-
-        // Set Shopify taxonomy category via GraphQL
-        // This properly sets the category (not just a suggestion)
-        let categoryMessage = ''
-        if (category && productData?.id) {
-          try {
-            const taxonomyResponse = await fetch('/api/shopify/taxonomy', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                shop: shopDomain,
-                accessToken: credentials.access_token,
-                productId: productData.id,
-                categoryName: category
-              })
-            })
-            
-            if (taxonomyResponse.ok) {
-              const taxonomyData = await taxonomyResponse.json()
-              if (taxonomyData.success && taxonomyData.categorySet) {
-                categoryMessage = ` | Category: ${taxonomyData.categorySet.name}`
-                console.log(`Set Shopify category: ${taxonomyData.categorySet.fullName}`)
-              }
-            } else {
-              const errorData = await taxonomyResponse.json()
-              console.warn('Taxonomy API error:', errorData)
-            }
-          } catch (err) {
-            console.warn('Failed to set taxonomy category:', err)
-          }
-        }
-
-        // Ensure Smart Collection exists for this product type
-        // This auto-populates the collection with products of matching type
-        let collectionMessage = ''
-        if (category) {
-          try {
-            const collectionResponse = await fetch('/api/shopify/collection', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                shop: shopDomain,
-                accessToken: credentials.access_token,
-                productType: category
-              })
-            })
-            
-            if (collectionResponse.ok) {
-              const collectionData = await collectionResponse.json()
-              if (collectionData.created) {
-                collectionMessage = ` + Collection "${collectionData.title}" created`
-              }
-            }
-          } catch (err) {
-            // Log but don't fail - product was already created
-            console.warn('Failed to ensure collection:', err)
-          }
-        }
-
-        const actionText = result.recreated 
-          ? `Product recreated in Shopify (was deleted)! ID: ${productData?.id}`
-          : isUpdate 
-            ? `Product updated in Shopify! ID: ${productData?.id}`
-            : `Product created in Shopify! ID: ${productData?.id}`
 
         setPushResult({
           success: true,
-          message: `${actionText}${categoryMessage}${collectionMessage}`
+          message: isUpdate 
+            ? `Product updated in Shopify! ID: ${productData?.id}`
+            : `Product created in Shopify! ID: ${productData?.id}`
         })
       } else if (store.platform === 'gallery-store') {
         // Gallery Store push - updates JSON file in GitHub repo
