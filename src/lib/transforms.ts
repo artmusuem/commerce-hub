@@ -138,7 +138,8 @@ export function transformToWooCommerce(
   categoryMap?: WooCategoryMap,
   options: TransformOptions = {}
 ): WooCommercePushPayload {
-  const { generateVariants: shouldGenerateVariants = true, pricingTemplate = STANDARD_TEMPLATE } = options
+  // Default: DO NOT generate variants - pass through what the product actually has
+  const { generateVariants: shouldGenerateVariants = false, pricingTemplate = STANDARD_TEMPLATE } = options
   
   // Map Commerce Hub status to WooCommerce status
   const statusMap: Record<string, string> = {
@@ -246,7 +247,8 @@ export function transformToShopify(
   shopifyTags?: string,
   options: TransformOptions = {}
 ): ShopifyPushPayload {
-  const { generateVariants: shouldGenerateVariants = true, pricingTemplate = STANDARD_TEMPLATE } = options
+  // Default: DO NOT generate variants - pass through what the product actually has
+  const { generateVariants: shouldGenerateVariants = false, pricingTemplate = STANDARD_TEMPLATE } = options
   
   // Map Commerce Hub status to Shopify status
   const statusMap: Record<string, 'active' | 'draft' | 'archived'> = {
