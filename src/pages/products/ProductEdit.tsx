@@ -455,12 +455,6 @@ export function ProductEdit() {
         const shopifyExternalId = platformIds.shopify
         const isUpdate = !!shopifyExternalId
         
-        // On update, strip variants/options to avoid 422 (Shopify needs variant IDs we don't have)
-        if (isUpdate) {
-          delete shopifyProduct.variants
-          delete shopifyProduct.options
-        }
-        
         const response = await fetch('/api/shopify/products', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
