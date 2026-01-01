@@ -1,51 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-
-interface ShopifyVariant {
-  id: number
-  title: string
-  price: string
-  compare_at_price: string | null
-  sku: string
-  barcode: string | null
-  position: number
-  inventory_quantity: number
-  inventory_management: string | null
-  option1: string | null
-  option2: string | null
-  option3: string | null
-}
-
-interface ShopifyOption {
-  id: number
-  product_id: number
-  name: string
-  position: number
-  values: string[]
-}
-
-interface ShopifyImage {
-  id: number
-  src: string
-  alt: string | null
-  position: number
-  width: number
-  height: number
-}
-
-interface ShopifyProduct {
-  id: number
-  title: string
-  body_html: string
-  vendor: string
-  product_type: string
-  tags: string
-  status: string
-  variants: ShopifyVariant[]
-  options: ShopifyOption[]
-  images: ShopifyImage[]
-}
+import { transformFromShopify, type ShopifyApiProduct } from '../../lib/transforms'
 
 interface ShopifyStore {
   id: string
@@ -61,7 +17,7 @@ export default function ShopifyImport() {
   const [step, setStep] = useState<'select' | 'preview' | 'importing' | 'done'>('select')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [products, setProducts] = useState<ShopifyProduct[]>([])
+  const [products, setProducts] = useState<ShopifyApiProduct[]>([])
   const [imported, setImported] = useState(0)
 
   // Load connected Shopify stores
@@ -134,8 +90,6 @@ export default function ShopifyImport() {
       const errors: string[] = []
       
       for (const product of products) {
-        const mainVariant = product.variants[0]
-        const mainImage = product.images[0]
         const externalId = String(product.id)
 
         // Check if product already exists (by external_id + store_id)
@@ -146,62 +100,15 @@ export default function ShopifyImport() {
           .eq('external_id', externalId)
           .single()
 
-        // Convert Shopify tags (comma-separated string) to array for PostgreSQL TEXT[]
-        const tagsArray = product.tags 
-          ? product.tags.split(',').map(t => t.trim()).filter(t => t.length > 0)
-          : null
-
-        // Determine product type based on variants
-        const productType = product.variants.length > 1 ? 'variable' : 'simple'
-
-        // Transform variants for JSONB storage
-        const variantsData = product.variants.map(v => ({
-          id: v.id,
-          title: v.title,
-          price: v.price,
-          compare_at_price: v.compare_at_price,
-          sku: v.sku || '',
-          barcode: v.barcode,
-          position: v.position,
-          inventory_quantity: v.inventory_quantity || 0,
-          inventory_management: v.inventory_management,
-          option1: v.option1,
-          option2: v.option2,
-          option3: v.option3
-        }))
-
-        // Transform options for JSONB storage (e.g., "Color", "Size")
-        const optionsData = product.options?.map(opt => ({
-          id: opt.id,
-          name: opt.name,
-          position: opt.position,
-          values: opt.values
-        })) || []
-
-        // Extract all image URLs for the images array
-        const allImageUrls = product.images?.map(img => img.src) || []
-
+        // Use proper transform function
+        const transformed = transformFromShopify(product, selectedStore.id)
+        
+        // Add auth-specific and extra fields
         const productData = {
+          ...transformed,
           user_id: user.id,
-          store_id: selectedStore.id,
-          external_id: externalId,
-          title: product.title,
-          description: product.body_html?.replace(/<[^>]*>/g, '') || '',
-          price: parseFloat(mainVariant?.price || '0'),
-          sku: mainVariant?.sku || '',
-          image_url: mainImage?.src || '',
-          images: allImageUrls.length > 0 ? allImageUrls : null,  // All product images
-          status: product.status === 'active' ? 'active' : 'draft',
-          category: product.product_type || '',
-          artist: '',  // Keep empty for Shopify products
-          vendor: product.vendor || '',  // Shopify vendor field
-          product_type: productType,  // 'simple' or 'variable'
-          variants: variantsData,  // Full variant data as JSONB
-          options: optionsData,  // Product options (Color, Size, etc.)
-          tags: tagsArray,  // Proper array format for PostgreSQL TEXT[]
-          attributes: {
-            platform: 'shopify'
-          }
+          // Extract all image URLs for the images array
+          images: product.images?.map(img => img.src) || null,
         }
 
         let error
