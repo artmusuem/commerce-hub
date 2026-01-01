@@ -501,21 +501,15 @@ export function ProductEdit() {
                 shop: shopDomain,
                 accessToken: credentials.access_token,
                 productId: productData.id,
-                categoryName: category,
-                title: title,
-                description: description
+                categoryName: category
               })
             })
             
             if (taxonomyResponse.ok) {
               const taxonomyData = await taxonomyResponse.json()
               if (taxonomyData.success && taxonomyData.categorySet) {
-                const metafieldsInfo = taxonomyData.metafieldsSet?.length 
-                  ? ` + ${taxonomyData.metafieldsSet.length} metafields`
-                  : ''
-                categoryMessage = ` | Category: ${taxonomyData.categorySet.searchTerm}${metafieldsInfo}`
+                categoryMessage = ` | Category: ${taxonomyData.categorySet.name}`
                 console.log(`Set Shopify category: ${taxonomyData.categorySet.fullName}`)
-                console.log(`Metafields set:`, taxonomyData.metafieldsSet)
               }
             } else {
               const errorData = await taxonomyResponse.json()
