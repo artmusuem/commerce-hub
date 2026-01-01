@@ -158,13 +158,18 @@ export function StoresIndex() {
           const shopDomain = targetStoreData.store_url?.replace(/^https?:\/\//, '').replace(/\/$/, '') || ''
           const shopifyProduct = transformToShopify(product, targetStoreData.store_name || 'Commerce Hub')
           
+          // Check if product already exists on Shopify
+          const existingShopifyId = product.platform_ids?.shopify
+          const isUpdate = !!existingShopifyId
+          
           const response = await fetch('/api/shopify/products', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               shop: shopDomain,
               accessToken: credentials.access_token,
-              action: 'create',
+              action: isUpdate ? 'update' : 'create',
+              productId: isUpdate ? existingShopifyId : undefined,
               product: shopifyProduct
             })
           })
@@ -174,17 +179,25 @@ export function StoresIndex() {
           }
           
           const result = await response.json()
-          const createdProductId = result.product?.id
+          const productId = result.product?.id
+          
+          // Save Shopify ID to platform_ids after create
+          if (productId && !isUpdate) {
+            await supabase
+              .from('products')
+              .update({ platform_ids: { ...product.platform_ids, shopify: String(productId) } })
+              .eq('id', product.id)
+          }
           
           // Set taxonomy category (same as single product push)
-          if (createdProductId && product.category) {
+          if (productId && product.category) {
             await fetch('/api/shopify/taxonomy', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 shop: shopDomain,
                 accessToken: credentials.access_token,
-                productId: createdProductId,
+                productId: productId,
                 categoryName: product.category
               })
             })
