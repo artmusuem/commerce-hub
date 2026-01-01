@@ -75,6 +75,7 @@ export function ProductEdit() {
   const [_storeId, setStoreId] = useState<string | null>(null)
   const [productPlatform, setProductPlatform] = useState<string | null>(null)
   const [externalId, setExternalId] = useState<string | null>(null)
+  const [platformIds, setPlatformIds] = useState<Record<string, string>>({})
   const [attributes, setAttributes] = useState<ProductAttribute[]>([])
   const [shopifyTags, setShopifyTags] = useState('')
   const [productType, setProductType] = useState<string>('simple')
@@ -144,6 +145,7 @@ export function ProductEdit() {
       setSku(data.sku || '')
       setStoreId(data.store_id || null)
       setExternalId(data.external_id || null)
+      setPlatformIds(data.platform_ids || {})
       
       // Handle attributes - can be array (WooCommerce) or object (Shopify)
       const attrs = data.attributes || []
@@ -373,11 +375,11 @@ export function ProductEdit() {
 
         const wooProduct = transformToWooCommerce(product, categoryMap)
         
-        // Only use external_id for updates if product came from WooCommerce
-        // (prevents using Shopify ID to try updating WooCommerce)
-        const wooExternalId = productPlatform === 'woocommerce' && externalId 
-          ? parseInt(externalId) 
+        // Check platformIds.woocommerce for existing WooCommerce product ID
+        const wooExternalId = platformIds.woocommerce 
+          ? parseInt(platformIds.woocommerce) 
           : undefined
+        const isUpdate = !!wooExternalId
         
         const result = await pushProductToWooCommerce(
           {
@@ -389,9 +391,21 @@ export function ProductEdit() {
           wooExternalId
         )
 
+        // Save WooCommerce product ID to platformIds after create
+        if (!isUpdate && result?.id) {
+          const newPlatformIds = { ...platformIds, woocommerce: String(result.id) }
+          await supabase
+            .from('products')
+            .update({ platform_ids: newPlatformIds })
+            .eq('id', id)
+          setPlatformIds(newPlatformIds)
+        }
+
         setPushResult({
           success: true,
-          message: `Product pushed to WooCommerce! ID: ${result.id}`
+          message: isUpdate
+            ? `Product updated in WooCommerce! ID: ${result.id}`
+            : `Product created in WooCommerce! ID: ${result.id}`
         })
             } else if (store.platform === 'shopify') {
         // Shopify push via serverless proxy (avoids CORS)
@@ -404,9 +418,9 @@ export function ProductEdit() {
         const shopDomain = store.store_url?.replace(/^https?:\/\//, '').replace(/\/$/, '') || ''
         const shopifyProduct = transformToShopify(product, store.store_name || 'Commerce Hub', shopifyTags)
         
-        // Only use external_id for updates if product came from Shopify
-        // (prevents using WooCommerce ID to try updating Shopify)
-        const isUpdate = productPlatform === 'shopify' && externalId && !isNaN(parseInt(externalId))
+        // Check platformIds.shopify for existing Shopify product ID
+        const shopifyExternalId = platformIds.shopify
+        const isUpdate = !!shopifyExternalId
         
         const response = await fetch('/api/shopify/products', {
           method: 'POST',
@@ -415,7 +429,7 @@ export function ProductEdit() {
             shop: shopDomain,
             accessToken: credentials.access_token,
             action: isUpdate ? 'update' : 'create',
-            productId: isUpdate ? externalId : undefined,
+            productId: isUpdate ? shopifyExternalId : undefined,
             product: shopifyProduct
           })
         })
@@ -428,14 +442,14 @@ export function ProductEdit() {
         const result = await response.json()
         const productData = result.product
         
-        // Only save external_id if this was a create AND product is from Shopify
-        // (don't overwrite Gallery Store or WooCommerce external_id)
-        if (!isUpdate && productData?.id && productPlatform === 'shopify') {
+        // Save Shopify product ID to platformIds after create
+        if (!isUpdate && productData?.id) {
+          const newPlatformIds = { ...platformIds, shopify: String(productData.id) }
           await supabase
             .from('products')
-            .update({ external_id: String(productData.id) })
+            .update({ platform_ids: newPlatformIds })
             .eq('id', id)
-          setExternalId(String(productData.id))
+          setPlatformIds(newPlatformIds)
         }
 
         setPushResult({
