@@ -156,11 +156,18 @@ export function StoresIndex() {
         } else if (targetPlatform === 'shopify') {
           const credentials = targetStoreData.api_credentials as { access_token: string }
           const shopDomain = targetStoreData.store_url?.replace(/^https?:\/\//, '').replace(/\/$/, '') || ''
-          const shopifyProduct = transformToShopify(product, targetStoreData.store_name || 'Commerce Hub')
           
           // Check if product already exists on Shopify
           const existingShopifyId = product.platform_ids?.shopify
           const isUpdate = !!existingShopifyId
+          
+          // On update, don't generate new variants (would cause 422)
+          const shopifyProduct = transformToShopify(
+            product, 
+            targetStoreData.store_name || 'Commerce Hub',
+            undefined,
+            { generateVariants: !isUpdate }
+          )
           
           const response = await fetch('/api/shopify/products', {
             method: 'POST',
