@@ -172,6 +172,37 @@ export function StoresIndex() {
           if (!response.ok) {
             throw new Error('Shopify push failed')
           }
+          
+          const result = await response.json()
+          const createdProductId = result.product?.id
+          
+          // Set taxonomy category (same as single product push)
+          if (createdProductId && product.category) {
+            await fetch('/api/shopify/taxonomy', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                shop: shopDomain,
+                accessToken: credentials.access_token,
+                productId: createdProductId,
+                categoryName: product.category
+              })
+            })
+          }
+          
+          // Ensure Smart Collection exists
+          if (product.category) {
+            await fetch('/api/shopify/collection', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                shop: shopDomain,
+                accessToken: credentials.access_token,
+                productType: product.category
+              })
+            })
+          }
+          
           success++
         }
       } catch (err) {
