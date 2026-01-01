@@ -4,6 +4,8 @@ import { ProtectedRoute } from './components/auth/ProtectedRoute'
 import { AdminLayout } from './components/layout/AdminLayout'
 import { Login } from './pages/auth/Login'
 import { Register } from './pages/auth/Register'
+import { Privacy } from './pages/legal/Privacy'
+import { Terms } from './pages/legal/Terms'
 import { Dashboard } from './pages/dashboard/Dashboard'
 import { ProductsIndex } from './pages/products/ProductsIndex'
 import { ProductNew } from './pages/products/ProductNew'
@@ -24,6 +26,8 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/terms" element={<Terms />} />
           <Route path="/stores/etsy/callback" element={<ProtectedRoute><EtsyCallback /></ProtectedRoute>} />
           <Route path="/auth/shopify/callback" element={<ProtectedRoute><ShopifyCallback /></ProtectedRoute>} />
           <Route path="/" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
