@@ -144,6 +144,37 @@ export default async function handler(req, res) {
         body: JSON.stringify({ product })
       })
 
+      // If product was deleted on Shopify, fall back to CREATE
+      if (response.status === 404) {
+        console.log(`Product ${productId} not found on Shopify, falling back to CREATE`)
+        
+        const createResponse = await fetch(`${baseUrl}/products.json`, {
+          method: 'POST',
+          headers: {
+            'X-Shopify-Access-Token': accessToken,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ product })
+        })
+
+        if (!createResponse.ok) {
+          const errorText = await createResponse.text()
+          console.error('Shopify create fallback error:', createResponse.status, errorText)
+          return res.status(createResponse.status).json({ 
+            error: `Shopify API error: ${createResponse.status}`,
+            details: errorText
+          })
+        }
+
+        const data = await createResponse.json()
+        // Flag that we recreated so frontend can update platformIds
+        return res.status(200).json({ 
+          ...data, 
+          recreated: true,
+          oldProductId: productId 
+        })
+      }
+
       if (!response.ok) {
         const errorText = await response.text()
         console.error('Shopify update error:', response.status, errorText)
