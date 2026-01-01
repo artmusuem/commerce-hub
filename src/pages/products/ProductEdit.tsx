@@ -475,14 +475,18 @@ export function ProductEdit() {
         const result = await response.json()
         const productData = result.product
         
-        // Save Shopify product ID to platformIds after create
-        if (!isUpdate && productData?.id) {
+        // Save Shopify product ID to platformIds after create OR recreate
+        // recreated = true when product was deleted on Shopify and we fell back to CREATE
+        if ((!isUpdate || result.recreated) && productData?.id) {
           const newPlatformIds = { ...platformIds, shopify: String(productData.id) }
           await supabase
             .from('products')
             .update({ platform_ids: newPlatformIds })
             .eq('id', id)
           setPlatformIds(newPlatformIds)
+          if (result.recreated) {
+            console.log(`Product was deleted on Shopify, recreated with new ID: ${productData.id}`)
+          }
         }
 
         // Set Shopify taxonomy category via GraphQL
@@ -549,11 +553,15 @@ export function ProductEdit() {
           }
         }
 
+        const actionText = result.recreated 
+          ? `Product recreated in Shopify (was deleted)! ID: ${productData?.id}`
+          : isUpdate 
+            ? `Product updated in Shopify! ID: ${productData?.id}`
+            : `Product created in Shopify! ID: ${productData?.id}`
+
         setPushResult({
           success: true,
-          message: isUpdate 
-            ? `Product updated in Shopify! ID: ${productData?.id}${categoryMessage}${collectionMessage}`
-            : `Product created in Shopify! ID: ${productData?.id}${categoryMessage}${collectionMessage}`
+          message: `${actionText}${categoryMessage}${collectionMessage}`
         })
       } else if (store.platform === 'gallery-store') {
         // Gallery Store push - updates JSON file in GitHub repo
