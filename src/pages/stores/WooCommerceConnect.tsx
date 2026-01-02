@@ -226,12 +226,6 @@ export function WooCommerceConnect() {
     }
   }
 
-  function stripHtml(html: string): string {
-    const tmp = document.createElement('div')
-    tmp.innerHTML = html
-    return tmp.textContent || tmp.innerText || ''
-  }
-
   if (step === 'done') {
     return (
       <div className="max-w-2xl mx-auto text-center py-12">
