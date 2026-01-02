@@ -9,9 +9,6 @@ interface WooCategory {
   slug: string
   parent: number
 }
-  slug: string
-  parent: number
-}
 
 export function WooCommerceConnect() {
   const navigate = useNavigate()
