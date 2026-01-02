@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { transformFromWooCommerce, type WooCommerceApiProduct } from '../../lib/transforms'
 
@@ -11,7 +11,6 @@ interface WooCategory {
 }
 
 export function WooCommerceConnect() {
-  const navigate = useNavigate()
   const [step, setStep] = useState<'connect' | 'preview' | 'importing' | 'done'>('connect')
   const [siteUrl, setSiteUrl] = useState('https://rapidwoo.com/commerce')
   const [consumerKey, setConsumerKey] = useState('')
