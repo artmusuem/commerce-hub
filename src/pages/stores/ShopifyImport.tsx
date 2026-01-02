@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { transformFromShopify, type ShopifyApiProduct } from '../../lib/transforms'
 
@@ -11,7 +11,6 @@ interface ShopifyStore {
 }
 
 export default function ShopifyImport() {
-  const navigate = useNavigate()
   const [stores, setStores] = useState<ShopifyStore[]>([])
   const [selectedStore, setSelectedStore] = useState<ShopifyStore | null>(null)
   const [step, setStep] = useState<'select' | 'preview' | 'importing' | 'done'>('select')
