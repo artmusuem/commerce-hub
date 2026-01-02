@@ -150,12 +150,6 @@ export function ProductsIndex() {
     archived: 'bg-gray-100 text-gray-700',
   }
 
-  const platformColors: Record<string, string> = {
-    'gallery-store': 'bg-blue-100 text-blue-700',
-    'woocommerce': 'bg-purple-100 text-purple-700',
-    'etsy': 'bg-orange-100 text-orange-700',
-  }
-
   const channelColors: Record<string, string> = {
     'woocommerce': 'bg-purple-100 text-purple-700 border-purple-200',
     'shopify': 'bg-green-100 text-green-700 border-green-200',
