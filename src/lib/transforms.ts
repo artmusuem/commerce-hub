@@ -311,27 +311,42 @@ export function transformToShopify(
       values: opt.values,
     }))
   } else if (hasExistingVariants && product.variants) {
-    // Pass through existing variants with their IDs (critical for updates!)
-    variants = product.variants.map(v => ({
-      id: v.id,
-      price: v.price,
-      compare_at_price: v.compare_at_price,
-      sku: v.sku || undefined,
-      barcode: v.barcode,
-      inventory_quantity: v.inventory_quantity,
-      inventory_management: v.inventory_management,
-      option1: v.option1,
-      option2: v.option2,
-      option3: v.option3
-    }))
+    // Pass through existing variants
+    // Only include ID if it's a Shopify ID (large number > 1 billion)
+    // WooCommerce IDs are small (4-5 digits) and cause 422 error on Shopify create
+    variants = product.variants.map(v => {
+      const variant: Record<string, unknown> = {
+        price: v.price,
+        compare_at_price: v.compare_at_price,
+        sku: v.sku || undefined,
+        barcode: v.barcode,
+        inventory_quantity: v.inventory_quantity,
+        inventory_management: v.inventory_management,
+        option1: v.option1,
+        option2: v.option2,
+        option3: v.option3
+      }
+      // Only include ID for Shopify variants (ID > 1 billion = Shopify, else WooCommerce)
+      // Shopify IDs are 13+ digits, WooCommerce are typically 4-5 digits
+      if (v.id && v.id > 1000000000) {
+        variant.id = v.id
+      }
+      return variant
+    })
     
     // Also pass through existing options
+    // Only include ID if it looks like a Shopify ID
     if (hasExistingOptions && product.options) {
-      productOptions = product.options.map(opt => ({
-        id: opt.id,
-        name: opt.name,
-        values: opt.values
-      }))
+      productOptions = product.options.map(opt => {
+        const option: Record<string, unknown> = {
+          name: opt.name,
+          values: opt.values
+        }
+        if (opt.id && opt.id > 1000000000) {
+          option.id = opt.id
+        }
+        return option
+      })
     }
   } else {
     // Default single variant for simple products or digital downloads
