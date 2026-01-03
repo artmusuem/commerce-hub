@@ -469,7 +469,9 @@ export function ProductEdit() {
 
         if (!response.ok) {
           const errorData = await response.json()
-          throw new Error(errorData.error || 'Shopify push failed')
+          // Show full error details from Shopify
+          const details = errorData.details ? ` - ${errorData.details}` : ''
+          throw new Error((errorData.error || 'Shopify push failed') + details)
         }
 
         const result = await response.json()
