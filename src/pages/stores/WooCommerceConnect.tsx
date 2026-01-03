@@ -25,11 +25,49 @@ interface WooProduct {
   }[]
 }
 
+// WooCommerce variation structure from /products/{id}/variations endpoint
+interface WooVariation {
+  id: number
+  sku: string
+  price: string
+  regular_price: string
+  sale_price: string
+  stock_quantity: number | null
+  stock_status: string
+  manage_stock: boolean
+  attributes: {
+    id: number
+    name: string
+    option: string
+  }[]
+}
+
 interface WooCategory {
   id: number
   name: string
   slug: string
   parent: number
+}
+
+// Unified variant format for Supabase (works with both WooCommerce and Shopify)
+interface UnifiedVariant {
+  id: number
+  price: string
+  compare_at_price?: string
+  sku?: string
+  inventory_quantity?: number
+  inventory_management?: string | null
+  option1?: string
+  option2?: string
+  option3?: string
+  // Keep original WooCommerce data for reference
+  woo_attributes?: { name: string; option: string }[]
+}
+
+// Unified options format
+interface UnifiedOption {
+  name: string
+  values: string[]
 }
 
 export function WooCommerceConnect() {
@@ -43,6 +81,7 @@ export function WooCommerceConnect() {
   const [products, setProducts] = useState<WooProduct[]>([])
   const [categories, setCategories] = useState<WooCategory[]>([])
   const [imported, setImported] = useState(0)
+  const [importProgress, setImportProgress] = useState('')
 
   async function testConnection() {
     setLoading(true)
@@ -102,13 +141,82 @@ export function WooCommerceConnect() {
     }
   }
 
+  // Fetch variations for a single variable product
+  async function fetchVariationsForProduct(
+    baseUrl: string, 
+    productId: number,
+    consumerKey: string,
+    consumerSecret: string
+  ): Promise<WooVariation[]> {
+    const url = `${baseUrl}/wp-json/wc/v3/products/${productId}/variations?per_page=100&consumer_key=${consumerKey}&consumer_secret=${consumerSecret}`
+    
+    try {
+      const response = await fetch(url)
+      if (!response.ok) {
+        console.warn(`Failed to fetch variations for product ${productId}: ${response.status}`)
+        return []
+      }
+      return await response.json()
+    } catch (err) {
+      console.warn(`Error fetching variations for product ${productId}:`, err)
+      return []
+    }
+  }
+
+  // Transform WooCommerce variations to unified format
+  function transformVariations(
+    wooVariations: WooVariation[], 
+    productAttributes: WooProduct['attributes']
+  ): { variants: UnifiedVariant[], options: UnifiedOption[] } {
+    
+    // Build options from product attributes that are marked for variations
+    const variationAttributes = productAttributes.filter(attr => attr.variation)
+    const options: UnifiedOption[] = variationAttributes.map(attr => ({
+      name: attr.name,
+      values: attr.options
+    }))
+
+    // Transform each variation
+    const variants: UnifiedVariant[] = wooVariations.map(v => {
+      const variant: UnifiedVariant = {
+        id: v.id,
+        price: v.price || v.regular_price || '0',
+        compare_at_price: v.sale_price && v.regular_price && v.sale_price !== v.regular_price 
+          ? v.regular_price 
+          : undefined,
+        sku: v.sku || undefined,
+        inventory_quantity: v.stock_quantity ?? undefined,
+        inventory_management: v.manage_stock ? 'shopify' : null,
+        woo_attributes: v.attributes.map(a => ({ name: a.name, option: a.option }))
+      }
+
+      // Map variation attributes to option1, option2, option3 (Shopify format)
+      // The order matches the options array order
+      variationAttributes.forEach((attr, index) => {
+        const varAttr = v.attributes.find(a => a.name === attr.name || a.id === attr.id)
+        if (varAttr) {
+          if (index === 0) variant.option1 = varAttr.option
+          else if (index === 1) variant.option2 = varAttr.option
+          else if (index === 2) variant.option3 = varAttr.option
+        }
+      })
+
+      return variant
+    })
+
+    return { variants, options }
+  }
+
   async function importProducts() {
     setStep('importing')
     setError('')
+    setImportProgress('Starting import...')
 
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
+
+      const baseUrl = siteUrl.replace(/\/$/, '')
 
       // Build api_credentials with categories for sync
       const apiCredentials = {
@@ -168,6 +276,7 @@ export function WooCommerceConnect() {
 
       // Delete existing products for this store before import (prevents duplicates)
       if (storeId) {
+        setImportProgress('Clearing old products...')
         const { error: deleteError } = await supabase
           .from('products')
           .delete()
@@ -178,29 +287,68 @@ export function WooCommerceConnect() {
         }
       }
 
+      // Filter publishable products
+      const publishedProducts = products.filter(p => p.name && p.status === 'publish')
+      
+      // Count variable products for progress tracking
+      const variableProducts = publishedProducts.filter(p => p.type === 'variable')
+      let variationsFetched = 0
+
       // Transform WooCommerce products to our format
-      const transformedProducts = products
-        .filter(p => p.name && p.status === 'publish')
-        .map(p => {
-          const base: Record<string, unknown> = {
-            user_id: user.id,
-            title: p.name,
-            description: stripHtml(p.description || p.short_description || ''),
-            price: parseFloat(p.price) || parseFloat(p.regular_price) || 0,
-            category: p.categories?.[0]?.name || 'Uncategorized',
-            image_url: p.images?.[0]?.src || null,
-            status: 'active' as const,
-            external_id: String(p.id),  // WooCommerce product ID for sync
-            sku: p.sku || null,
-            attributes: p.attributes || [],  // WooCommerce attributes array
-            product_type: p.type || 'simple',  // simple, variable, grouped, external
+      // For variable products, fetch their variations
+      const transformedProducts = []
+      
+      for (const p of publishedProducts) {
+        setImportProgress(`Processing ${p.name}...`)
+        
+        let variants: UnifiedVariant[] = []
+        let options: UnifiedOption[] = []
+
+        // Fetch variations for variable products
+        if (p.type === 'variable') {
+          variationsFetched++
+          setImportProgress(`Fetching variations for ${p.name} (${variationsFetched}/${variableProducts.length})...`)
+          
+          const wooVariations = await fetchVariationsForProduct(
+            baseUrl,
+            p.id,
+            consumerKey,
+            consumerSecret
+          )
+          
+          if (wooVariations.length > 0) {
+            const transformed = transformVariations(wooVariations, p.attributes)
+            variants = transformed.variants
+            options = transformed.options
           }
-          // Only add store_id if we have one (migration may not have run)
-          if (storeId) {
-            base.store_id = storeId
-          }
-          return base
-        })
+        }
+
+        const base: Record<string, unknown> = {
+          user_id: user.id,
+          title: p.name,
+          description: stripHtml(p.description || p.short_description || ''),
+          price: parseFloat(p.price) || parseFloat(p.regular_price) || 0,
+          category: p.categories?.[0]?.name || 'Uncategorized',
+          image_url: p.images?.[0]?.src || null,
+          status: 'active' as const,
+          external_id: String(p.id),  // WooCommerce product ID for sync
+          sku: p.sku || null,
+          attributes: p.attributes || [],  // WooCommerce attributes array
+          product_type: p.type || 'simple',  // simple, variable, grouped, external
+          variants: variants,  // Variation data with prices, SKUs, etc.
+          options: options,    // Option definitions (Color, Size, etc.)
+          platform_ids: { woocommerce: String(p.id) },  // Track WooCommerce ID
+        }
+        
+        // Only add store_id if we have one (migration may not have run)
+        if (storeId) {
+          base.store_id = storeId
+        }
+        
+        transformedProducts.push(base)
+      }
+
+      setImportProgress(`Saving ${transformedProducts.length} products to database...`)
 
       // Batch insert
       const { error: insertError } = await supabase
@@ -209,9 +357,18 @@ export function WooCommerceConnect() {
 
       if (insertError) {
         // If optional columns don't exist, retry without them
-        if (insertError.message.includes('store_id') || insertError.message.includes('external_id') || insertError.message.includes('attributes') || insertError.message.includes('sku') || insertError.message.includes('product_type')) {
+        if (insertError.message.includes('store_id') || 
+            insertError.message.includes('external_id') || 
+            insertError.message.includes('attributes') || 
+            insertError.message.includes('sku') || 
+            insertError.message.includes('product_type') ||
+            insertError.message.includes('variants') ||
+            insertError.message.includes('options') ||
+            insertError.message.includes('platform_ids')) {
+          
+          console.warn('Some columns missing, retrying with basic fields only')
           const productsWithoutOptional = transformedProducts.map(p => {
-            const { store_id, external_id, attributes, sku, product_type, ...rest } = p
+            const { store_id, external_id, attributes, sku, product_type, variants, options, platform_ids, ...rest } = p
             return rest
           })
           const { error: retryError } = await supabase
@@ -244,6 +401,7 @@ export function WooCommerceConnect() {
         <div className="text-5xl mb-4">🎉</div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">WooCommerce Connected!</h2>
         <p className="text-gray-600 mb-6">{imported} products imported from your store</p>
+        <p className="text-sm text-gray-500 mb-6">Variable products now include full variation data (prices, SKUs, inventory)</p>
         <div className="flex gap-3 justify-center">
           <button
             onClick={() => navigate('/products')}
@@ -253,7 +411,7 @@ export function WooCommerceConnect() {
           </button>
           <Link
             to="/stores"
-            className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+            className="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
           >
             Back to Stores
           </Link>
@@ -262,149 +420,185 @@ export function WooCommerceConnect() {
     )
   }
 
+  if (step === 'importing') {
+    return (
+      <div className="max-w-2xl mx-auto text-center py-12">
+        <div className="animate-spin text-4xl mb-4">⚙️</div>
+        <h2 className="text-xl font-semibold text-gray-900 mb-2">Importing Products...</h2>
+        <p className="text-gray-600 mb-4">{importProgress}</p>
+        <p className="text-sm text-gray-500">This may take a moment for stores with many variable products</p>
+      </div>
+    )
+  }
+
+  if (step === 'preview') {
+    const variableCount = products.filter(p => p.type === 'variable').length
+    const simpleCount = products.filter(p => p.type === 'simple').length
+    
+    return (
+      <div className="max-w-4xl mx-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold text-gray-900">
+            Preview: {products.length} products found
+          </h2>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setStep('connect')}
+              className="px-4 py-2 text-gray-600 hover:text-gray-800"
+            >
+              ← Back
+            </button>
+            <button
+              onClick={importProducts}
+              className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            >
+              Import All Products
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <p className="text-blue-800">
+            <strong>{variableCount} variable products</strong> will have their variations fetched (prices, SKUs, inventory).
+            <br />
+            <strong>{simpleCount} simple products</strong> will be imported directly.
+          </p>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Product</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Type</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Category</th>
+                <th className="text-right px-4 py-3 text-sm font-medium text-gray-600">Price</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {products.slice(0, 20).map((product) => (
+                <tr key={product.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      {product.images?.[0] && (
+                        <img
+                          src={product.images[0].src}
+                          alt=""
+                          className="w-10 h-10 rounded object-cover"
+                        />
+                      )}
+                      <span className="text-sm font-medium text-gray-900">{product.name}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`text-xs px-2 py-1 rounded ${
+                      product.type === 'variable' 
+                        ? 'bg-purple-100 text-purple-800' 
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {product.type}
+                      {product.type === 'variable' && product.attributes?.filter(a => a.variation).length > 0 && (
+                        <span className="ml-1">
+                          ({product.attributes.filter(a => a.variation).map(a => a.name).join(', ')})
+                        </span>
+                      )}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600">
+                    {product.categories?.[0]?.name || 'Uncategorized'}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-900 text-right">
+                    ${product.price || product.regular_price || '0'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {products.length > 20 && (
+            <div className="px-4 py-3 bg-gray-50 text-center text-sm text-gray-500">
+              ...and {products.length - 20} more products
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // Connect form (step === 'connect')
   return (
-    <div className="max-w-2xl">
-      <Link to="/stores" className="text-sm text-gray-500 hover:text-gray-700 mb-4 inline-flex items-center gap-1">
+    <div className="max-w-xl mx-auto">
+      <Link to="/stores" className="text-blue-600 hover:underline mb-4 inline-block">
         ← Back to Stores
       </Link>
 
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Connect WooCommerce</h1>
-        <p className="text-gray-600">Import products from your WordPress store</p>
-      </div>
+      <div className="bg-white rounded-xl shadow-sm p-6">
+        <h2 className="text-xl font-semibold text-gray-900 mb-6">Connect WooCommerce Store</h2>
 
-      {error && (
-        <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-6">{error}</div>
-      )}
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm">
+            {error}
+          </div>
+        )}
 
-      {step === 'connect' && (
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                WordPress Site URL
-              </label>
-              <input
-                type="url"
-                value={siteUrl}
-                onChange={(e) => setSiteUrl(e.target.value)}
-                placeholder="https://yourstore.com"
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-              <p className="text-xs text-gray-500 mt-1">Your WordPress site root (not /shop)</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Consumer Key
-              </label>
-              <input
-                type="text"
-                value={consumerKey}
-                onChange={(e) => setConsumerKey(e.target.value)}
-                placeholder="ck_xxxxxxxxxxxxxxxx"
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Consumer Secret
-              </label>
-              <input
-                type="password"
-                value={consumerSecret}
-                onChange={(e) => setConsumerSecret(e.target.value)}
-                placeholder="cs_xxxxxxxxxxxxxxxx"
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
-              />
-            </div>
-
-            <button
-              onClick={testConnection}
-              disabled={loading || !siteUrl || !consumerKey || !consumerSecret}
-              className="w-full py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
-            >
-              {loading ? 'Connecting...' : 'Connect & Fetch Products'}
-            </button>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Store URL
+            </label>
+            <input
+              type="url"
+              value={siteUrl}
+              onChange={(e) => setSiteUrl(e.target.value)}
+              placeholder="https://yourstore.com"
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+            />
           </div>
 
-          {/* Instructions */}
-          <div className="mt-6 pt-6 border-t">
-            <h3 className="font-medium text-gray-900 mb-2">How to get API keys:</h3>
-            <ol className="text-sm text-gray-600 space-y-1 list-decimal list-inside">
-              <li>Go to WP Admin → WooCommerce → Settings → Advanced</li>
-              <li>Click "REST API" tab → "Add key"</li>
-              <li>Set Description: "Commerce Hub"</li>
-              <li>Set Permissions: "Read/Write"</li>
-              <li>Click "Generate API key"</li>
-              <li>Copy Consumer Key and Secret here</li>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Consumer Key
+            </label>
+            <input
+              type="text"
+              value={consumerKey}
+              onChange={(e) => setConsumerKey(e.target.value)}
+              placeholder="ck_..."
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Consumer Secret
+            </label>
+            <input
+              type="password"
+              value={consumerSecret}
+              onChange={(e) => setConsumerSecret(e.target.value)}
+              placeholder="cs_..."
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="bg-gray-50 rounded-lg p-4 text-sm text-gray-600">
+            <strong>How to get API keys:</strong>
+            <ol className="list-decimal ml-4 mt-2 space-y-1">
+              <li>Go to WooCommerce → Settings → Advanced → REST API</li>
+              <li>Click "Add key"</li>
+              <li>Give it a name, select "Read/Write" permissions</li>
+              <li>Copy the Consumer Key and Secret</li>
             </ol>
           </div>
-        </div>
-      )}
 
-      {step === 'preview' && (
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">
-              Found {products.length} Products
-            </h2>
-            <button
-              onClick={importProducts}
-              className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-            >
-              Import All
-            </button>
-          </div>
-
-          <div className="max-h-96 overflow-y-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 sticky top-0">
-                <tr>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Image</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Name</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Price</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {products.map(p => (
-                  <tr key={p.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-2">
-                      {p.images?.[0]?.src ? (
-                        <img src={p.images[0].src} alt="" className="w-10 h-10 rounded object-cover bg-gray-100" />
-                      ) : (
-                        <div className="w-10 h-10 rounded bg-gray-100 flex items-center justify-center text-gray-400">📷</div>
-                      )}
-                    </td>
-                    <td className="px-4 py-2 text-sm font-medium text-gray-900 max-w-xs truncate">
-                      {p.name}
-                    </td>
-                    <td className="px-4 py-2 text-sm text-gray-600">
-                      ${p.price || p.regular_price || '0'}
-                    </td>
-                    <td className="px-4 py-2">
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        p.status === 'publish' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                      }`}>
-                        {p.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <button
+            onClick={testConnection}
+            disabled={loading || !siteUrl || !consumerKey || !consumerSecret}
+            className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Connecting...' : 'Connect & Preview Products'}
+          </button>
         </div>
-      )}
-
-      {step === 'importing' && (
-        <div className="bg-white rounded-xl shadow-sm p-12 text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Importing products...</p>
-        </div>
-      )}
+      </div>
     </div>
   )
 }
