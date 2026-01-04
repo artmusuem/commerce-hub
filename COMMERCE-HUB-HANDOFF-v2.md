@@ -354,5 +354,37 @@ Run sync comparison report on [product] and grade it A-F
 
 ---
 
+## Session: January 4, 2026 - A-Grade Sync Deployed
+
+### What Was Built
+- api/shopify/graphql.js - Serverless GraphQL proxy
+- src/lib/shopify-graphql.ts - Mutations + input builders
+- src/lib/shopify-push.ts - 7-step orchestrator
+- src/components/ShopifyPushButton.tsx - UI with progress
+- src/lib/product-mapper.ts - Unified product transforms
+
+### Deployment Status
+- Production: commerce-hub-iota.vercel.app ✅
+- API route /api/shopify/graphql ✅
+- 7-step sync tested and working ✅
+
+### Claude Code Best Practices
+
+**Testing Node.js with GraphQL:**
+- ❌ WRONG: node -e with GraphQL (bash breaks $, !, parentheses)
+- ✅ RIGHT: Write to .mjs file first, then `node file.mjs`, then delete
+
+**Local Dev:**
+- ❌ WRONG: vercel dev with Vite (MIME errors)
+- ✅ RIGHT: npm run dev for UI, test API on production
+
+**Deployment Flow:**
+1. npm run build (catch TS errors)
+2. Test sync via MCPs (direct API, no proxy)
+3. git push → Vercel auto-deploys
+4. Test UI on production
+
+---
+
 *Last Updated: January 4, 2026*
-*Session Focus: WooCommerce → Shopify variant sync, MCP orchestration, architecture assessment*
+*Session Focus: A-Grade Shopify sync deployed to production*
