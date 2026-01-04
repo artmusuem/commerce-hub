@@ -25,7 +25,7 @@ export interface WooCommercePushPayload {
   name: string
   type?: string
   status?: string
-  regular_price: string
+  regular_price?: string
   description?: string
   short_description?: string
   sku?: string

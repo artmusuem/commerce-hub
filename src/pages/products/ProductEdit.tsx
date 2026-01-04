@@ -5,6 +5,7 @@ import { transformToWooCommerce, transformToShopify } from '../../lib/transforms
 import type { WooCategoryMap } from '../../lib/transforms'
 import { pushProductToWooCommerce, fetchProductVariations, updateProductVariation, createWooCommerceCategory } from '../../lib/woocommerce'
 import type { WooCommerceVariation } from '../../lib/woocommerce'
+import { ShopifyPushPanel } from '../../components/ShopifyPushButton'
 
 interface WooCredentials {
   consumer_key: string
@@ -1629,6 +1630,67 @@ export function ProductEdit() {
           <p className="text-xs text-gray-400 mt-3">
             Connected stores: {pushableStores.map(s => s.platform).join(', ')}
           </p>
+
+          {/* A-Grade Shopify Sync Panel */}
+          {(() => {
+            const shopifyStore = stores.find(s => s.platform === 'shopify')
+            if (!shopifyStore) return null
+
+            const shopifyCredentials = shopifyStore.api_credentials as { access_token?: string } | null
+            if (!shopifyCredentials?.access_token) return null
+
+            return (
+              <div className="mt-6 pt-6 border-t border-gray-200">
+                <ShopifyPushPanel
+                  product={{
+                    id: id!,
+                    title,
+                    description,
+                    vendor,
+                    category,
+                    tags: shopifyTags ? shopifyTags.split(',').map(t => t.trim()).filter(Boolean) : null,
+                    image_url: imageUrl,
+                    images: allImages,
+                    sku,
+                    options: shopifyOptions.map(o => ({ name: o.name, values: o.values })),
+                    variants: shopifyVariants.map(v => ({
+                      id: v.id,
+                      option1: v.option1,
+                      option2: v.option2,
+                      option3: v.option3,
+                      price: v.price,
+                      compare_at_price: v.compare_at_price,
+                      sku: v.sku,
+                      inventory_quantity: v.inventory_quantity,
+                      image_url: undefined
+                    }))
+                  }}
+                  store={{
+                    id: shopifyStore.id,
+                    store_url: shopifyStore.store_url || '',
+                    store_name: shopifyStore.store_name,
+                    api_credentials: { access_token: shopifyCredentials.access_token! }
+                  }}
+                  onSuccess={(result) => {
+                    setPushResult({
+                      success: true,
+                      message: `A-Grade sync complete! Shopify ID: ${result.shopifyProductId?.split('/').pop()}`
+                    })
+                    // Update local platformIds
+                    if (result.shopifyProductId) {
+                      setPlatformIds(prev => ({ ...prev, shopify: result.shopifyProductId! }))
+                    }
+                  }}
+                  onError={(error) => {
+                    setPushResult({
+                      success: false,
+                      message: `A-Grade sync failed: ${error}`
+                    })
+                  }}
+                />
+              </div>
+            )
+          })()}
         </div>
       )}
     </div>
