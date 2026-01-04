@@ -552,7 +552,7 @@ export function buildMediaInput(images: { src: string; alt?: string }[]): Create
 
 /**
  * Build variant input for Step 3: Create additional variants
- * Skip the first option value (already created in Step 1)
+ * Skip the variant that Shopify auto-created (first value of each option)
  */
 export function buildCreateVariantsInput(
   variants: {
@@ -566,7 +566,25 @@ export function buildCreateVariantsInput(
   options: { name: string; values: string[] }[],
   skipFirst: boolean = true
 ): CreateVariantInput[] {
-  const toCreate = skipFirst ? variants.slice(1) : variants
+  // Shopify auto-creates a variant with the FIRST value of each option
+  // e.g., if options are Color: [Blue, Green] and Size: [M, L]
+  // Shopify creates "Blue / M" automatically
+  const firstOptionValues = {
+    option1: options[0]?.values[0] || null,
+    option2: options[1]?.values[0] || null,
+    option3: options[2]?.values[0] || null
+  }
+
+  // Filter out the variant that matches what Shopify auto-created
+  const toCreate = skipFirst
+    ? variants.filter(v => {
+        const matches1 = !firstOptionValues.option1 || v.option1 === firstOptionValues.option1
+        const matches2 = !firstOptionValues.option2 || v.option2 === firstOptionValues.option2
+        const matches3 = !firstOptionValues.option3 || v.option3 === firstOptionValues.option3
+        // Skip if ALL options match (this is the auto-created variant)
+        return !(matches1 && matches2 && matches3)
+      })
+    : variants
 
   return toCreate.map(v => {
     const optionValues: VariantOptionValue[] = []
