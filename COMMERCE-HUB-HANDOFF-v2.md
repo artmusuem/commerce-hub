@@ -77,18 +77,100 @@ Instead of fixing Commerce Hub's rigid transform code, we used Claude Code with 
 - Gap analysis of current code vs guide
 - Minimum refactor plan
 
-### 4. New Code Files (In Progress)
+### 4. New Code Files (Complete)
 
-**src/lib/shopify-graphql.ts**
-- All GraphQL mutations from the guide
-- Helper functions for building inputs
-- Works with `mcp__shopify__executeGraphQL`
+**src/lib/shopify-graphql.ts** - GraphQL Mutations & Input Builders
 
-**src/lib/shopify-push.ts** (being built)
-- 7-step orchestrator
-- Calls mutations in correct order
-- Handles image upload polling
-- Sets inventory properly
+```
+MUTATIONS:
+| Mutation               | Purpose                                      | Step |
+|------------------------|----------------------------------------------|------|
+| createProduct          | Create product with options                  | 1    |
+| createMedia            | Upload images                                | 2    |
+| getProduct             | Check media status                           | 2    |
+| createVariants         | Bulk create additional variants              | 3    |
+| updateVariants         | Set prices, assign images                    | 4    |
+| getInventoryItem       | Get location ID                              | 5    |
+| setInventory           | Set stock quantities                         | 5    |
+| updateProduct          | Set description, SEO                         | 6    |
+| activateProduct        | Set status to ACTIVE                         | 7    |
+| getLocations           | List store locations                         | -    |
+
+Input Builders:
+- buildCreateProductInput()     // Step 1
+- buildMediaInput()             // Step 2
+- buildCreateVariantsInput()    // Step 3 (skips first variant)
+- buildUpdateVariantsInput()    // Step 4
+- buildInventoryInput()         // Step 5 (includes ignoreCompareQuantity)
+- buildSeoUpdateInput()         // Step 6
+- buildActivateInput()          // Step 7
+
+Helper Functions:
+- areAllMediaReady() - Check if images finished processing
+- extractErrors() - Pull user errors from responses
+- mapVariantsToMedia() - Match variants to images by alt text
+- getShopifyQuantity() - Convert WooCommerce stock to Shopify quantity
+- transformSupabaseToShopify() - Convert Supabase product → Shopify format
+
+Usage with MCP:
+  import { MUTATIONS, buildCreateProductInput } from './shopify-graphql'
+  await mcp__shopify__executeGraphQL({
+    query: MUTATIONS.createProduct,
+    variables: { input: buildCreateProductInput(product) }
+  })
+```
+
+**src/lib/shopify-push.ts** - 7-Step Orchestrator
+
+```typescript
+// Push single product with progress tracking
+const result = await pushProductToShopify(product, store, {
+  onProgress: (step, message) => console.log(`Step ${step}: ${message}`),
+  defaultInventory: 10,
+  activateOnComplete: true
+})
+
+// Push batch of products
+const batch = await pushBatchToShopify(products, store, {
+  onProductProgress: (i, total, product, result) => {...},
+  continueOnError: true
+})
+
+// Get Supabase update after success
+const update = buildSupabaseUpdate(result)
+// { platform_ids: { shopify: "gid://..." }, sync_status: "synced", last_synced_at: "..." }
+```
+
+7-Step Functions:
+| Step | Function            | What it does                              |
+|------|---------------------|-------------------------------------------|
+| 1    | step1CreateProduct  | Creates product with productOptions       |
+| 2    | step2UploadImages   | Uploads all images, polls for READY       |
+| 3    | step3CreateVariants | Creates additional variants (skips first) |
+| 4    | step4UpdateVariants | Sets prices, assigns images to variants   |
+| 5    | step5SetInventory   | Sets stock with ignoreCompareQuantity     |
+| 6    | step6UpdateSeo      | Full HTML description + SEO fields        |
+| 7    | step7Activate       | Sets status to ACTIVE                     |
+
+Result Structure:
+```typescript
+interface PushResult {
+  success: boolean
+  shopifyProductId?: string    // "gid://shopify/Product/123"
+  shopifyHandle?: string       // "anchor-bracelet"
+  variantIds?: string[]        // All variant GIDs
+  errors?: string[]
+  steps: {
+    step: number
+    name: string
+    success: boolean
+    duration: number           // ms
+    error?: string
+  }[]
+}
+```
+
+**Note:** Needs `/api/shopify/graphql` serverless route to proxy GraphQL calls.
 
 ---
 
